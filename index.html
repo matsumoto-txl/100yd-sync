@@ -193,6 +193,9 @@ const CINTENT=[['safe','安全'],['normal','普通'],['attack','勝負'],['reckl
 const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','スライス','まっすぐ'];
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
+/* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
+const APP_VERSION='2.3.0';
+const APP_BUILD='2026-08-03';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -414,7 +417,8 @@ function renderHome(){
     ${rounds.length?rounds.map(card).join(''):(all.length?'<p class="sm muted" style="margin:10px 4px;">該当するラウンドがありません。</p>':'<p class="sm muted" style="margin:10px 4px;">まだ記録がありません。</p>')}
     <h2>設定</h2>
     <button class="ghostbtn" onclick="openAppSettings()">⚙ アプリ設定（名前・単位・番手・タグ）</button>
-    ${legacyRounds().length?`<h2>旧データ点検</h2><button class="ghostbtn" onclick="openAuditList()">🔍 以前の記録（元データ）を確認</button>`:''}`;
+    ${legacyRounds().length?`<h2>旧データ点検</h2><button class="ghostbtn" onclick="openAuditList()">🔍 以前の記録（元データ）を確認</button>`:''}
+    <p class="sm muted center" style="margin-top:22px; padding-bottom:6px">100yd Sync <b>v${APP_VERSION}</b> ・ ${APP_BUILD}</p>`;
   $('topsub').textContent='ホーム'; $('topbtns').innerHTML='';
 }
 function resume(id){ const r=DB.round(id); if(!r)return; S.round=r; S.half=0; S.view='card'; render(); }
@@ -546,7 +550,11 @@ function renderAppSettings(){
       <button class="ghostbtn" onclick="restoreBackup('copy')">📤 復元：別名で追加（推奨・非破壊）</button>
       <button class="ghostbtn" onclick="restoreBackup('overwrite')">📤 復元：上書き（同IDを置換）</button>
       <button class="ghostbtn" onclick="exportCSV()">📄 スコアをCSVで書き出し（表計算用・復元不可）</button>
-      <div class="sm muted">JSONは完全な復元用、CSVは閲覧用（復元不可）。機種変更・万一の備えに、こまめに書き出しを。</div></div>`;
+      <div class="sm muted">JSONは完全な復元用、CSVは閲覧用（復元不可）。機種変更・万一の備えに、こまめに書き出しを。</div></div>
+    <h2>バージョン情報</h2><div class="card">
+      <div style="font-weight:800; font-size:17px">100yd Sync v${APP_VERSION}</div>
+      <div class="sm muted" style="margin-top:2px">ビルド日：${APP_BUILD}</div>
+      <div class="sm muted" style="margin-top:8px">この番号が変わっていれば、更新が反映されています。更新は「新しいバージョンがあります」→「更新する」で適用されます。</div></div>`;
   $('topsub').textContent='アプリ設定';
   $('topbtns').innerHTML=`<button class="iconbtn" onclick="goHome()">キャンセル</button> <button class="iconbtn primary" onclick="saveAppSettings()">保存</button>`;
   setupSortables();
