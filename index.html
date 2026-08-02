@@ -13,743 +13,580 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>100yd Sync</title>
 <style>
-  :root{
-    --bg:#0f1115; --surface:#191c23; --surface2:#20242d; --border:#2b313d;
-    --text:#e8eaed; --muted:#9aa0aa;
-    --accent:#4f8cff; --good:#3ecb7a; --amber:#f0b429; --bad:#ff5d5d; --purple:#a78bfa; --teal:#2dd4bf;
-    --radius:12px;
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,"Hiragino Kaku Gothic ProN","游ゴシック",YuGothic,sans-serif;
-    font-size:16px; line-height:1.5; overscroll-behavior:none;}
-  .app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
-  header{position:sticky; top:0; z-index:10; background:var(--bg); border-bottom:1px solid var(--border);
-    padding:10px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-  header .ttl{font-weight:600; font-size:17px;}
-  header .sub{color:var(--muted); font-size:13px;}
-  header .sp{flex:1;}
-  main{flex:1; padding:14px; padding-bottom:96px;}
-  h2{font-size:15px; color:var(--muted); font-weight:600; margin:18px 0 8px; letter-spacing:.02em;}
-  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px;}
-  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-  .btn{appearance:none; border:1px solid var(--border); background:var(--surface2); color:var(--text);
-    border-radius:10px; padding:12px 14px; font-size:16px; font-weight:600; cursor:pointer; min-height:50px;}
-  .btn:active{transform:scale(.98);}
-  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .btn.ghost{background:transparent;}
-  .btn.sm{min-height:40px; padding:8px 12px; font-size:14px; font-weight:600;}
-  .btn.wide{width:100%;}
-  .grid{display:grid; gap:8px;}
-  .seg{display:flex; gap:6px; flex-wrap:wrap;}
-  .seg .opt{flex:1 1 auto; min-width:64px; text-align:center; border:1px solid var(--border); background:var(--surface2);
-    color:var(--text); border-radius:10px; padding:12px 6px; font-size:15px; font-weight:600; cursor:pointer; min-height:50px;}
-  .seg .opt.on{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .seg.exec .opt.on{background:var(--teal); border-color:var(--teal); color:#04302a;}
-  .seg.result .opt.on{background:var(--purple); border-color:var(--purple); color:#1a1030;}
-  .clubs .opt{min-width:52px; flex:0 0 auto; padding:12px 4px; font-size:14px;}
-  .stepper{display:flex; align-items:center; gap:10px;}
-  .stepper .val{font-size:26px; font-weight:700; min-width:96px; text-align:center;}
-  .stepper .unit{font-size:14px; color:var(--muted);}
-  .unit{font-size:15px; color:var(--muted); margin-left:6px;}
-  .holebar{position:sticky; top:var(--hh,0px); z-index:9; background:var(--bg);
-    display:flex; align-items:center; gap:8px; margin:0 -14px 10px; padding:8px 14px; border-bottom:1px solid var(--border);}
-  .holebar b{font-size:18px;}
-  .numstrip{display:flex; gap:6px; overflow-x:auto; padding:4px 0; -webkit-overflow-scrolling:touch;}
-  .num{flex:0 0 auto; min-width:52px; text-align:center; padding:12px 0; border:1px solid var(--border);
-    border-radius:10px; background:var(--surface2); font-weight:700; cursor:pointer; font-size:17px;}
-  .num.on{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .num.sug{border-color:var(--accent); color:var(--accent);}
-  .mv{color:var(--muted); padding:4px 6px; cursor:pointer; font-size:15px;}
-  .clubrow{display:flex; gap:6px; overflow-x:auto; padding:4px 0; -webkit-overflow-scrolling:touch;}
-  .clubrow .opt{flex:0 0 auto; min-width:52px; padding:12px 8px; border:1px solid var(--border);
-    background:var(--surface2); border-radius:10px; font-weight:700; cursor:pointer; text-align:center;}
-  .clubrow .opt.on{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .stepper .btn{width:56px; padding:0; font-size:24px;}
-  select.sel{appearance:none; background:var(--surface2); color:var(--text); border:1px solid var(--border);
-    border-radius:10px; padding:12px 34px 12px 14px; font-size:18px; font-weight:700; min-height:50px; min-width:84px;
+  :root{ color-scheme: dark;
+    --bg:#0f1115; --surface:#191c23; --surface2:#20242d; --surface3:#262b35; --border:#2b313d;
+    --text:#e8eaed; --muted:#9aa0aa; --accent:#4f8cff; --good:#3ecb7a; --amber:#f0b429; --bad:#ff5d5d; --teal:#2dd4bf; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; }
+  .wrap{ position:fixed; inset:0; overflow-y:auto; background:var(--bg); color:var(--text);
+    font-family:-apple-system,"Hiragino Kaku Gothic ProN","游ゴシック",YuGothic,sans-serif; -webkit-font-smoothing:antialiased;
+    font-size:16px; line-height:1.5; }
+  .phone{ max-width:460px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; }
+  .top{ position:sticky; top:0; z-index:20; background:rgba(15,17,21,.94); backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--border); padding:10px 12px; display:flex; align-items:center; gap:8px; }
+  .top .t{ font-weight:700; font-size:16px; } .top .sub{ color:var(--muted); font-size:12px; }
+  .sp{ flex:1; }
+  .iconbtn{ appearance:none; border:1px solid var(--border); background:var(--surface2); color:var(--text);
+    border-radius:10px; min-height:40px; padding:8px 11px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .iconbtn:active{ transform:scale(.97); } .iconbtn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  main{ padding:12px 12px 96px; flex:1; }
+  h2{ font-size:13px; color:var(--muted); font-weight:700; margin:18px 4px 8px; letter-spacing:.03em; }
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px; }
+  .muted{ color:var(--muted); } .sm{ font-size:13px; } .tnum{ font-variant-numeric:tabular-nums; } .center{ text-align:center; }
+  .bigbtn{ width:100%; appearance:none; cursor:pointer; border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:12px; padding:16px; font-weight:800; font-size:16px; }
+  .ghostbtn{ width:100%; appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:12px; padding:14px; font-weight:800; font-size:15px; }
+
+  select{ appearance:none; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:9px;
+    padding:9px 24px 9px 10px; font-size:15px; font-weight:800; cursor:pointer;
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%239aa0aa' stroke-width='1.6'/></svg>");
-    background-repeat:no-repeat; background-position:right 12px center;}
-  .chip{display:inline-block; background:var(--surface2); border:1px solid var(--border); border-radius:999px;
-    padding:3px 10px; font-size:13px; color:var(--muted); margin:2px 4px 2px 0;}
-  .chip.good{background:rgba(62,203,122,.15); color:var(--good); border-color:transparent;}
-  .chip.bad{background:rgba(255,93,93,.15); color:var(--bad); border-color:transparent;}
-  .chip.amber{background:rgba(240,180,41,.15); color:var(--amber); border-color:transparent;}
-  .listitem{display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border);}
-  .listitem:first-child{border-top:none;}
-  .listitem .x{margin-left:auto; color:var(--muted); font-size:20px; padding:4px 8px; cursor:pointer;}
-  .muted{color:var(--muted);} .sm{font-size:13px;} .center{text-align:center;}
-  input[type=text]{width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
-    border-radius:10px; padding:12px; font-size:16px;}
-  textarea{width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
-    border-radius:10px; padding:12px; font-size:16px; font-family:inherit; line-height:1.5; resize:vertical; min-height:56px;}
-  label.check{display:flex; align-items:center; gap:10px; padding:12px; background:var(--surface2);
-    border:1px solid var(--border); border-radius:10px; cursor:pointer; font-weight:600;}
-  label.check input{width:22px; height:22px;}
-  .tabs{display:flex; gap:6px; margin-bottom:12px;}
-  .tabs .t{flex:1; text-align:center; padding:10px; border-radius:10px; background:var(--surface2);
-    border:1px solid var(--border); font-weight:600; cursor:pointer; font-size:14px;}
-  .tabs .t.on{background:var(--surface); border-color:var(--accent); color:var(--accent);}
-  .tabs .t.done{color:var(--good);}
-  .tabs .t.disabled{opacity:.35; pointer-events:none;}
-  .footer{position:fixed; left:0; right:0; bottom:0; background:linear-gradient(to top,var(--bg) 70%,transparent);
-    padding:12px 14px calc(12px + env(safe-area-inset-bottom)); }
-  .footer .inner{max-width:520px; margin:0 auto;}
-  /* scorecard */
-  .cardwrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius);}
-  table.sc{border-collapse:collapse; width:100%; white-space:nowrap; font-size:14px;}
-  table.sc th, table.sc td{border:1px solid var(--border); padding:8px 6px; text-align:center; min-width:34px;}
-  table.sc th.name, table.sc td.name{text-align:left; position:sticky; left:0; background:var(--surface); min-width:74px; z-index:1;}
-  table.sc th{background:var(--surface2); color:var(--muted); font-weight:600;}
-  table.sc th.hole{cursor:pointer;}
-  table.sc td.sub{background:var(--surface2); font-weight:700;}
-  td.eagle{color:#ff9d00;} td.birdie{color:var(--good);} td.par{color:var(--text);}
-  td.bogey{color:var(--amber);} td.dbl{color:var(--bad);}
-  .parcell{cursor:pointer; user-select:none;}
-  table.holetbl{border-collapse:separate; border-spacing:5px; width:100%; text-align:center;}
-  table.holetbl th{color:var(--muted); font-weight:600; font-size:13px; padding:2px 0;}
-  table.holetbl td.hno{font-weight:700; min-width:28px;}
-  table.holetbl td.hno.start{background:var(--amber); color:#3a2a00; border-radius:8px;}
-  table.holetbl select.sel{min-width:0; width:100%; padding:10px 24px 10px 10px; font-size:15px; font-weight:600;}
-  .parpick{border:1px solid var(--border); border-radius:8px; padding:12px 0; font-weight:700;
-    cursor:pointer; min-width:30px; color:var(--muted); background:var(--surface2);}
-  .parpick.on{background:rgba(79,140,255,.22); border-color:var(--accent); color:var(--accent);}
-  .kpi{display:flex; gap:8px;}
-  .kpi .k{flex:1; background:var(--surface2); border-radius:10px; padding:10px; text-align:center;}
-  .kpi .k .v{font-size:22px; font-weight:700;} .kpi .k .l{font-size:12px; color:var(--muted);}
+    background-repeat:no-repeat; background-position:right 8px center; }
+  textarea{ width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px; font-size:15px; font-family:inherit; line-height:1.5; resize:vertical; min-height:48px; }
+  input[type=text],input[type=date]{ width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:11px; font-size:15px; }
+
+  .halfsw{ display:flex; gap:8px; margin:2px 4px 12px; }
+  .halfsw button{ flex:1; appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--muted); font-weight:800; font-size:15px; padding:12px; border-radius:12px; }
+  .halfsw button.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  /* スコアカード */
+  .sc{ border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .scrow{ display:grid; grid-template-columns:84px repeat(var(--np,4),1fr); align-items:stretch; }
+  .scrow + .scrow{ border-top:1px solid var(--border); }
+  .schead{ background:var(--surface2); color:var(--muted); font-size:12px; font-weight:700; }
+  .schead .cell{ padding:9px 4px; text-align:center; }
+  .hcell{ display:flex; flex-direction:column; justify-content:center; gap:3px; padding:10px 8px; margin:6px; cursor:pointer; background:var(--surface3); border:1px solid var(--border); border-radius:10px; }
+  .hcell:active{ border-color:var(--accent); background:rgba(79,140,255,.14); }
+  .hcell .no{ font-weight:800; font-size:19px; line-height:1; } .hcell .meta{ font-size:11px; color:var(--muted); } .hcell .go{ font-size:10px; color:var(--accent); font-weight:800; }
+  .pcellwrap{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 4px; border-left:1px solid var(--border); }
+  .pcellwrap.me{ background:rgba(79,140,255,.07); }
+  .ssel{ width:100%; text-align:center; text-align-last:center; font-size:20px; padding:8px 20px 8px 8px; }
+  .ssel.eagle{ color:#ff9d00; } .ssel.birdie{ color:var(--good); } .ssel.par0{ color:var(--text); } .ssel.bogey{ color:var(--amber); } .ssel.dbl{ color:var(--bad); }
+  .sdiff{ font-size:11px; font-weight:800; line-height:1; }
+  .sdiff.eagle{ color:#ff9d00; } .sdiff.birdie{ color:var(--good); } .sdiff.par0{ color:var(--muted); } .sdiff.bogey{ color:var(--amber); } .sdiff.dbl{ color:var(--bad); }
+  .puttrow{ display:flex; align-items:center; gap:4px; } .puttrow .plab{ font-size:10px; color:var(--muted); }
+  .psel{ padding:5px 20px 5px 8px; font-size:13px; }
+  .cntbadge{ font-size:11px; font-weight:800; color:var(--muted); background:var(--surface3); border:1px solid var(--border); border-radius:7px; padding:2px 6px; font-variant-numeric:tabular-nums; }
+  .totrow{ display:grid; grid-template-columns:84px repeat(var(--np,4),1fr); background:var(--surface2); border-top:2px solid var(--border); }
+  .totrow.sub{ background:var(--surface); border-top-width:1px; } .totrow.grand{ background:var(--surface3); }
+  .totrow .cell{ padding:11px 2px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; }
+  .totrow .tlab{ text-align:left; padding-left:8px; color:var(--muted); }
+  .ou{ color:var(--muted); font-size:12px; font-weight:700; }
+
+  /* ホーム */
+  .filters{ display:flex; gap:8px; margin:0 4px 10px; }
+  .rcard{ display:flex; align-items:center; gap:10px; }
+  .rcard .open{ appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:10px; min-height:46px; padding:10px 16px; font-weight:800; }
+  .trash{ appearance:none; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:10px; min-height:46px; min-width:48px; font-size:18px; }
+  .rscore{ margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:baseline; gap:10px; }
+  .rscore b{ font-size:22px; } .rscore .dl{ font-size:12px; color:var(--muted); }
+  .confirm{ margin-top:10px; border:1px solid rgba(255,93,93,.5); background:rgba(255,93,93,.08); border-radius:12px; padding:12px; }
+  .confirm .btns{ display:flex; gap:10px; margin-top:10px; }
+  .confirm .del{ flex:1; appearance:none; cursor:pointer; border:1px solid var(--bad); background:var(--bad); color:#fff; border-radius:11px; min-height:48px; font-weight:800; font-size:15px; }
+  .confirm .cancel{ flex:1; appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:11px; min-height:48px; font-weight:800; font-size:15px; }
+
+  /* 詳細 */
+  .backbar{ display:flex; align-items:center; gap:10px; margin:2px 2px 12px; }
+  .backbtn{ appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:11px; min-height:44px; padding:8px 14px; font-weight:800; font-size:14px; }
+  .titlebar{ display:flex; align-items:center; gap:8px; margin:0 4px 10px; flex-wrap:wrap; }
+  .ydsel{ margin-left:auto; font-variant-numeric:tabular-nums; }
+  .stagetabs{ display:flex; gap:8px; margin:0 2px 4px; }
+  .stab{ flex:1; text-align:center; padding:13px 6px; border:1px solid var(--border); border-radius:12px; background:var(--surface2); color:var(--muted); font-weight:800; font-size:15px; cursor:pointer; }
+  .stab.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .cbadge{ display:inline-block; margin-left:6px; min-width:20px; padding:1px 6px; border-radius:8px; background:rgba(0,0,0,.28); font-size:13px; font-variant-numeric:tabular-nums; }
+  .stab.on .cbadge{ background:rgba(255,255,255,.28); }
+  .cbadge.warn{ background:var(--bad); color:#fff; } .cbadge.dim{ opacity:.4; }
+
+  .srow{ border:1px solid var(--border); border-radius:12px; padding:10px; margin-top:10px; background:var(--surface); }
+  .srowhead{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+  .seq{ width:26px; height:26px; border-radius:8px; background:var(--surface3); color:var(--muted); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex:0 0 auto; }
+  .cname{ font-weight:800; font-size:17px; } .cname.non{ color:var(--muted); font-weight:700; font-size:15px; }
+  .pnlab{ font-size:11px; font-weight:800; color:var(--muted); border:1px solid var(--border); border-radius:7px; padding:4px 6px; }
+  .pensel{ padding:8px 20px 8px 8px; font-size:14px; min-width:58px; }
+  .pensel.act{ border-color:var(--bad); color:var(--bad); }
+  .ydbox{ background:#e8eaed; color:#0f1115; font-weight:800; min-width:66px; padding:8px 12px; text-align:center; text-align-last:center; background-image:none; }
+  .delx{ margin-left:auto; appearance:none; cursor:pointer; border:1px solid rgba(255,93,93,.4); background:rgba(255,93,93,.12); color:var(--bad); font-weight:800; font-size:13px; border-radius:10px; min-height:40px; min-width:44px; }
+  .cstrip{ display:flex; gap:6px; overflow-x:auto; padding:2px 0 6px; -webkit-overflow-scrolling:touch; }
+  .cbtn{ flex:0 0 auto; min-width:48px; text-align:center; padding:12px 6px; border:1px solid var(--border); border-radius:10px; background:var(--surface2); font-weight:800; font-size:15px; cursor:pointer; }
+  .cbtn.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .reseg{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .ro{ padding:11px 16px; border:1px solid var(--border); border-radius:10px; background:var(--surface2); font-weight:800; font-size:14px; cursor:pointer; }
+  .ro.on{ background:var(--teal); border-color:var(--teal); color:#04302a; }
+  .reseg .rlab{ color:var(--muted); font-size:13px; } .unit{ color:var(--muted); font-size:14px; }
+
+  .addrow{ display:flex; gap:8px; margin-top:10px; }
+  .addrow button{ flex:1; appearance:none; cursor:pointer; border:1px dashed var(--border); background:transparent; font-weight:800; font-size:15px; padding:14px; border-radius:12px; }
+  .addrow .add{ color:var(--accent); border-color:rgba(79,140,255,.5); } .addrow .rem{ color:var(--muted); }
+  .segopt{ flex:1 1 auto; min-width:70px; text-align:center; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:10px; padding:12px 6px; font-size:14px; font-weight:800; cursor:pointer; }
+  .segopt.on{ background:var(--accent); border-color:var(--accent); color:#fff; } .seg{ display:flex; gap:6px; flex-wrap:wrap; }
+
+  .sdetail{ border:1px solid var(--border); border-radius:12px; padding:10px; margin-top:10px; background:var(--surface); }
+  .sdhead{ font-weight:800; font-size:15px; margin-bottom:6px; }
+  .taglab{ font-size:11px; color:var(--muted); margin:10px 2px 6px; }
+  .tags{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .tag{ padding:9px 12px; border:1px solid var(--border); border-radius:999px; background:var(--surface2); color:var(--text); font-size:13px; font-weight:700; cursor:pointer; }
+  .tag.pre.on{ background:rgba(45,212,191,.16); border-color:var(--teal); color:var(--teal); }
+  .tag.post.on{ background:rgba(79,140,255,.18); border-color:var(--accent); color:#cfe0ff; }
+  .tag.putt.on{ background:rgba(240,180,41,.18); border-color:var(--amber); color:#ffe08a; }
+  .addtag{ display:flex; gap:6px; margin-top:6px; } .addtag input{ flex:1; padding:8px 10px; font-size:13px; }
+  .addtag button{ appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--accent); font-weight:800; border-radius:9px; padding:8px 12px; }
+
+  .okbtn{ width:100%; appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:12px; padding:15px; font-weight:800; font-size:16px; }
+  .okbtn.on{ background:var(--good); border-color:var(--good); color:#04301a; }
+  .frow{ display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; } .frow .fl{ color:var(--muted); font-size:13px; min-width:96px; }
+  .drow{ display:flex; gap:8px; } .dcol{ flex:1; } .dcol select{ width:100%; } .dcol .dt{ font-size:11px; color:var(--muted); margin-bottom:4px; text-align:center; }
+
+  /* 設定・セットアップ */
+  .cardwrap{ overflow-x:auto; }
+  table.holetbl{ border-collapse:separate; border-spacing:5px; width:100%; text-align:center; }
+  table.holetbl th{ color:var(--muted); font-weight:700; font-size:12px; padding:2px 0; }
+  table.holetbl td.hno{ font-weight:800; min-width:28px; } table.holetbl td.hno.start{ background:var(--amber); color:#3a2a00; border-radius:8px; }
+  table.holetbl select{ width:100%; min-width:74px; padding:10px 22px 10px 10px; font-size:14px; }
+  .parpick{ border:1px solid var(--border); border-radius:8px; padding:13px 0; font-weight:800; cursor:pointer; min-width:36px; color:var(--muted); background:var(--surface2); }
+  .parpick.on{ background:rgba(79,140,255,.22); border-color:var(--accent); color:var(--accent); }
+  .grid2{ display:flex; flex-direction:column; gap:8px; } .prow{ display:flex; align-items:center; gap:8px; } .prow input{ flex:1; }
+  .chip{ display:inline-block; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:12px; color:var(--muted); white-space:nowrap; }
+  .setline{ display:flex; align-items:center; gap:10px; margin-bottom:10px; } .setline .slab{ font-size:13px; color:var(--muted); min-width:78px; }
+  .drag{ cursor:grab; touch-action:none; user-select:none; color:var(--muted); font-size:20px; padding:6px 8px; line-height:1; flex:0 0 auto; }
+  .prow.dragging{ opacity:.6; background:var(--surface3); border-radius:10px; }
+  .taghdr{ position:sticky; top:56px; z-index:6; background:var(--bg); padding:8px 2px 6px; font-weight:800; font-size:14px; color:var(--accent); border-bottom:1px solid var(--border); margin-top:12px; }
+
+  .savechip{ position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:30; background:rgba(62,203,122,.16); border:1px solid rgba(62,203,122,.5); color:var(--good); font-size:12px; font-weight:800; padding:8px 14px; border-radius:999px; pointer-events:none; opacity:0; transition:opacity .15s; }
+  .savechip.on{ opacity:1; }
 </style>
 </head>
 <body>
-<div class="app">
-  <header>
-    <div class="ttl">100yd Sync</div>
-    <div class="sub" id="hsub"></div>
-    <div class="sp"></div>
-    <button class="btn sm ghost" id="hbtn" style="display:none" onclick="toCard()">スコアカード</button>
-  </header>
-  <main id="main"></main>
-  <div class="footer" id="footer"></div>
+<div class="wrap">
+  <div class="phone">
+    <div class="top">
+      <div><div class="t">100yd Sync</div><div class="sub" id="topsub"></div></div>
+      <div class="sp"></div>
+      <div id="topbtns"></div>
+    </div>
+    <main id="app"></main>
+  </div>
 </div>
+<div class="savechip" id="savechip">保存しました</div>
 
 <script>
 /* ============ 定数 ============ */
-function baseClubs(){ return [['1W',250],['3W',230],['5W',210],['3U',200],['4U',190],['5I',175],['6I',165],['7I',150],['8I',138],['9I',125],['PW',110],['AW',95],['SW',75],['PT',0]].map(([name,dist])=>({name,dist})); }
-const EXEC=[{v:3,l:'ナイス'},{v:2,l:'まずまず'},{v:1,l:'ミス'}];
-const RESULT_TG=[{v:4,l:'最高'},{v:3,l:'合格'},{v:2,l:'イマイチ'},{v:0,l:'NG'}];
-const RESULT_AP=[{v:4,l:'in/OK'},{v:3,l:'合格'},{v:2,l:'イマイチ'},{v:0,l:'NG'}];
-// タグ初期値（パットはエイミング＋傾向のキーワードを流用）
-function defPuttTags(){ return ['厚く読みすぎ','薄く読みすぎ','ちょうど','思い通り','芯外し','パンチ','緩んだ','押し出し','ひっかけ']; }
-// 道中/アプローチのタグは2グループ（pre=実行前 / post=実行〜結果）。旧配列は実行前に移行
-function tagGroup(v){ if(Array.isArray(v)) return {pre:v.slice(),post:[]}; v=v||{}; return {pre:(v.pre||[]).slice(),post:(v.post||[]).slice()}; }
-const SLOPE=[{v:'up',l:'上り'},{v:'down',l:'下り'},{v:'flat',l:'フラット'},{v:'left',l:'左傾'},{v:'right',l:'右傾'}];
-const INTENT=[{v:'safe',l:'安全'},{v:'attack',l:'勝負'},{v:'reckless',l:'無謀'}];
-const FAULT=[{v:'push',l:'押し出し'},{v:'pull',l:'引っ掛け'},{v:'punch',l:'パンチ'},{v:'decel',l:'緩み'}];
-const LV=[{v:1,l:'Lv1 パットのみ'},{v:2,l:'Lv2 100y以内'},{v:3,l:'Lv3 フル'}];
-// パット（事実収集型）
-const PRESULT=[{v:'in',l:'カップイン'},{v:'ok',l:'OK'},{v:'miss',l:'外れ'}];
-const AIM=[{v:'thick',l:'厚く読みすぎ'},{v:'thin',l:'薄く読みすぎ'},{v:'just',l:'ちょうど'}];
-const SLOPE_V=[{v:'up',l:'上り'},{v:'down',l:'下り'},{v:'flat',l:'フラット'}];
-const SLOPE_H=[{v:'hook',l:'フック'},{v:'slice',l:'スライス'},{v:'straight',l:'まっすぐ'}];
-const TENDENCY=[{v:'asPlanned',l:'思い通り'},{v:'offCenter',l:'芯外し'},{v:'punch',l:'パンチ'},{v:'decel',l:'緩んだ'},{v:'push',l:'押し出し'},{v:'pull',l:'ひっかけ'}];
+function baseClubs(){ return [['1W',250],['3W',230],['5W',210],['3U',190],['4U',180],['5I',170],['6I',160],['7I',150],['8I',140],['9I',130],['PW',120],['AW',100],['SW',80],['PT',20]].map(([name,dist])=>({name,dist})); }
+function baseDistOf(name){ const c=baseClubs().find(c=>c.name===name); return c?c.dist:0; }
+function defTags(){ return {
+  through:{ pre:['FW','ラフ','つま先上り','左足下り','向い風','フォロー','ピン奥','ピン手前','ベア','ディボット'],
+            post:['会心','ナイス','ダフリ','トップ','引っ掛け','プッシュ','スライス','ショート','オーバー','当り薄','OB','池ポチャ','林','バンカー','ロスト'] },
+  approach:{ pre:['FW','ラフ','ベア','左足下り','向い風','ピン奥','ピン手前','夏芝','冬芝'],
+             post:['会心','ナイス','ダフリ','トップ','引っ掛け','ショート','オーバー','スピン効いた','当り薄'] },
+  putt:['厚く読みすぎ','薄く読みすぎ','ちょうど','思い通り','芯外し','パンチ','緩んだ','押し出し','ひっかけ'] }; }
+const LV=[[1,'Lv1 パットのみ'],[2,'Lv2 100y以内'],[3,'Lv3 フル']];
+const CRESULT=[['best','最高'],['ok','合格'],['meh','イマイチ'],['ng','NG']];
+const ARESULT=[['in','in'],['ok','OK'],['meh','イマイチ'],['ng','NG']];
+const CINTENT=[['safe','安全'],['normal','普通'],['attack','勝負'],['reckless','無謀']];
+const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','スライス','まっすぐ'];
+const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
+const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 
-/* ============ 保存 ============ */
+/* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
+const NS='golf.v2.';
+function mergeTags(def,s){ if(!s)return def;
+  return { through:{pre:(s.through&&s.through.pre)||def.through.pre, post:(s.through&&s.through.post)||def.through.post},
+           approach:{pre:(s.approach&&s.approach.pre)||def.approach.pre, post:(s.approach&&s.approach.post)||def.approach.post},
+           putt:s.putt||def.putt }; }
+function normClubs(arr){ return arr.map(c=> typeof c==='string'?{name:c,dist:baseDistOf(c)}:{name:c.name,dist:(c.dist!=null?c.dist:baseDistOf(c.name))}); }
 const DB={
-  courses:()=>JSON.parse(localStorage.getItem('golf.courses')||'[]'),
-  saveCourses:c=>localStorage.setItem('golf.courses',JSON.stringify(c)),
-  round:id=>JSON.parse(localStorage.getItem('golf.round.'+id)||'null'),
-  index:()=>JSON.parse(localStorage.getItem('golf.rounds')||'[]'),
-  saveRound(r){
-    localStorage.setItem('golf.round.'+r.roundId,JSON.stringify(r));
-    const idx=this.index().filter(x=>x.id!==r.roundId);
-    idx.unshift({id:r.roundId,date:r.date,course:courseLabel(r)});
-    localStorage.setItem('golf.rounds',JSON.stringify(idx));
-  },
-  delRound(id){
-    localStorage.removeItem('golf.round.'+id);
-    localStorage.setItem('golf.rounds',JSON.stringify(this.index().filter(x=>x.id!==id)));
-  },
-  settings(){
-    const def={nickname:'', teeDefault:{'3':150,'4':350,'5':480}, logLevel:3,
-      units:{toGreen:'y', approach:'y', putt:'歩'}};
-    const s=JSON.parse(localStorage.getItem('golf.settings')||'null')||{};
-    const st=s.tags||{};
-    return {nickname:s.nickname||def.nickname,
-      teeDefault:Object.assign({}, def.teeDefault, s.teeDefault||{}),
-      logLevel:s.logLevel||def.logLevel,
-      units:Object.assign({}, def.units, s.units||{}),
-      clubs:(s.clubs&&s.clubs.length)?s.clubs:baseClubs(),
-      tags:{ through:tagGroup(st.through), approach:tagGroup(st.approach), putt:st.putt||defPuttTags() }};
-  },
-  saveSettings(s){ localStorage.setItem('golf.settings',JSON.stringify(s)); }
+  settings(){ const def={ nickname:'', teeDefault:{3:150,4:350,5:480}, logLevel:3,
+      units:{toGreen:'y', approach:'y', putt:'歩'}, clubs:baseClubs(), tags:defTags(),
+      startClubs:{first:'1W', second:'5I', approach:'PW'} };
+    const s=JSON.parse(localStorage.getItem(NS+'settings')||'null')||{};
+    return { nickname:s.nickname||def.nickname, logLevel:s.logLevel||def.logLevel,
+      teeDefault:Object.assign({},def.teeDefault,s.teeDefault||{}),
+      units:Object.assign({},def.units,s.units||{}),
+      clubs:(s.clubs&&s.clubs.length)?normClubs(s.clubs):def.clubs,
+      tags:mergeTags(def.tags,s.tags),
+      startClubs:Object.assign({},def.startClubs,s.startClubs||{}) }; },
+  saveSettings(s){ localStorage.setItem(NS+'settings',JSON.stringify(s)); },
+  index(){ return JSON.parse(localStorage.getItem(NS+'rounds')||'[]'); },
+  round(id){ return JSON.parse(localStorage.getItem(NS+'round.'+id)||'null'); },
+  saveRound(r){ localStorage.setItem(NS+'round.'+r.roundId, JSON.stringify(r));
+    const idx=DB.index().filter(x=>x.id!==r.roundId);
+    idx.unshift({id:r.roundId, date:r.date, course:(r.course&&r.course.name)||'コース未設定'});
+    localStorage.setItem(NS+'rounds', JSON.stringify(idx)); },
+  delRound(id){ localStorage.removeItem(NS+'round.'+id);
+    localStorage.setItem(NS+'rounds', JSON.stringify(DB.index().filter(x=>x.id!==id))); }
 };
 
-/* ============ 分析：結果−実行=判断+運 ============ */
-function calc(shot){
-  if(shot.execution==null||shot.result==null) return null;
-  const D=shot.result-shot.execution;
-  let j,l;
-  if(shot.lucky){ j=Math.min(D,1); l=D-j; } else { j=D; l=0; }
-  return {D,j,l};
-}
-function jChip(c){
-  if(!c) return '';
-  const cls=c.j>0?'good':(c.j<0?'bad':'amber');
-  const luck=c.l>0?` 運+${c.l}`:'';
-  return `<span class="chip ${cls}">判断${c.j>=0?'+':''}${c.j}${luck}</span>`;
-}
+/* ============ モデル ============ */
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parOn(par){ return Math.max(1, par-2); }
+function mkShot(){ return {club:null,pen:0,pre:[],post:[],note:'',yard:null}; }
+function mkPutt(){ return {dist:null,effDist:null,slopeV:null,slopeH:null,result:null,exec:null,touch:0,tags:[]}; }
+function mkOwner(par){ return {
+  through:{ shots:[...Array(parOn(par))].map(mkShot), eval:{result:null,intent:null}, res:null, remain:null },
+  approach:{ shots:[], eval:{result:null,intent:null} },
+  putt:{ okOn:false, num:0, details:[] } }; }
+function playersOf(names){ return names.map((n,i)=>({id:'p'+(i+1),name:(n||'').trim(),owner:i===0})).filter((p,i)=>i===0||p.name); }
+function clubDist(name){ const c=DB.settings().clubs.find(c=>c.name===name); return c?c.dist:null; }
+function halfFloor(y){ if(y==null)return null; const h=y/2; return h>20?Math.floor(h/5)*5:Math.floor(h); }
 
 /* ============ 状態 ============ */
-let S={screen:'home', round:null, holeIdx:0, stage:'toGreen', draft:{}, stripScroll:{}};
+let S={ view:'home', round:null, half:0, detailHole:0, stage:'through' };
+let setup=null, appset=null, delConfirm=null, homeFilter={y:'',m:''};
 const $=id=>document.getElementById(id);
-function save(){ if(S.round) DB.saveRound(S.round); }
-function curHole(){ return S.round.holes[S.holeIdx]; }
-function owner(){ return S.round.players.find(p=>p.owner); }
+function save(){ if(S.round){ DB.saveRound(S.round); flashSave(); } }
+function flashSave(){ const c=$('savechip'); c.classList.add('on'); clearTimeout(flashSave._t); flashSave._t=setTimeout(()=>c.classList.remove('on'),900); }
+function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function H(){ return S.round.holes[S.detailHole]; }
+function OWN(){ const h=H(); if(!h.owner) h.owner=mkOwner(h.par); return h.owner; }
 
-/* ============ 画面遷移 ============ */
-function go(screen){ S.screen=screen; render(); window.scrollTo(0,0); }
-function toCard(){ save(); go('card'); }
+/* ============ オプション生成 ============ */
+function distOpts(cur){ const vals=[]; for(let v=1;v<=20;v++)vals.push(v); for(let v=25;v<=100;v+=5)vals.push(v); if(cur==null)cur=100;
+  return vals.map(v=>`<option value="${v}" ${v===cur?'selected':''}>${v}</option>`).join(''); }
+function shotYardOpts(cur){ const vals=[]; for(let v=0;v<=20;v++)vals.push(v); for(let v=25;v<=600;v+=5)vals.push(v);
+  if(cur!=null&&!vals.includes(cur)){ vals.push(cur); vals.sort((a,b)=>a-b); }
+  let o='<option value="">−y</option>'; vals.forEach(v=>o+=`<option value="${v}" ${cur===v?'selected':''}>${v}y</option>`); return o; }
+function yardOpts(cur){ let o=''; for(let v=80;v<=620;v+=5)o+=`<option value="${v}" ${v===cur?'selected':''}>${v}y</option>`; return o; }
+function clubDistOpts(cur){ const vals=[]; for(let v=0;v<=350;v+=5)vals.push(v); if(cur!=null&&!vals.includes(cur)){ vals.push(cur); vals.sort((a,b)=>a-b); }
+  return vals.map(v=>`<option value="${v}" ${v===cur?'selected':''}>${v}y</option>`).join(''); }
+function stepOpts(cur){ const vals=[]; for(let v=0;v<=3;v+=0.5)vals.push(v); for(let v=4;v<=30;v++)vals.push(v);
+  let o='<option value="">−</option>'; vals.forEach(v=>o+=`<option value="${v}" ${cur===v?'selected':''}>${v}</option>`); return o; }
+function touchOpts(cur){ if(cur==null)cur=0; const vals=[]; for(let v=-10;v<=10;v+=0.5)vals.push(v);
+  return vals.map(v=>`<option value="${v}" ${cur===v?'selected':''}>${v>0?'+':''}${v}</option>`).join(''); }
+
+/* ============ カウント ============ */
+function throughCount(h){ return h.owner?h.owner.through.shots.reduce((a,s)=>a+1+(s.pen||0),0):0; }
+function approachCount(h){ return h.owner?h.owner.approach.shots.reduce((a,s)=>a+1+(s.pen||0),0):0; }
+function puttOK(p){ return (p.okOn?1:0)+p.details.filter(d=>d.result==='OK').length; }
+function puttCount(h){ return h.owner?h.owner.putt.num+puttOK(h.owner.putt):0; }
+function puttSyncNum(p){ while(p.details.length<p.num)p.details.push(mkPutt()); if(p.details.length>p.num)p.details.length=p.num; }
+function ownerPid(r){ const o=r.players.find(p=>p.owner); return o?o.id:'p1'; }
+function selfTotal(r){ const pid=ownerPid(r); let s=0,any=false; r.holes.forEach(h=>{const v=h.scores[pid]; if(v!=null){s+=v;any=true;}}); return any?s:null; }
+function detailScore(r){ let s=0,a=0,p=0,any=false; r.holes.forEach(h=>{ if(h.owner){ s+=throughCount(h); a+=approachCount(h); p+=puttCount(h); any=true; } }); return any?{s,a,p,tot:s+a+p}:null; }
 
 /* ============ ホーム ============ */
+function goHome(){ S.view='home'; S.round=null; delConfirm=null; render(); }
+function setFilter(k,v){ homeFilter[k]=v; render(); }
 function renderHome(){
-  const rounds=DB.index();
-  $('main').innerHTML=`
+  const all=DB.index();
+  const years=[...new Set(all.map(r=>r.date.slice(0,4)))].sort().reverse();
+  const rounds=all.filter(r=> (!homeFilter.y||r.date.slice(0,4)===homeFilter.y) && (!homeFilter.m||r.date.slice(5,7)===homeFilter.m) );
+  const yOpt=`<select onchange="setFilter('y',this.value)"><option value="">年（すべて）</option>${years.map(y=>`<option value="${y}" ${homeFilter.y===y?'selected':''}>${y}年</option>`).join('')}</select>`;
+  const mOpt=`<select onchange="setFilter('m',this.value)"><option value="">月（すべて）</option>${[...Array(12)].map((_,i)=>{const m=String(i+1).padStart(2,'0');return `<option value="${m}" ${homeFilter.m===m?'selected':''}>${i+1}月</option>`;}).join('')}</select>`;
+  const card=r=>{ const R=DB.round(r.id); const t=R?selfTotal(R):null, d=R?detailScore(R):null;
+    return `<div class="card" style="margin-bottom:10px">
+      <div class="rcard"><div style="flex:1"><div style="font-weight:800">${esc(r.course)}</div><div class="sm muted">${r.date}</div></div>
+        <button class="open" onclick="resume('${r.id}')">開く</button>
+        <button class="trash" onclick="askDel('${r.id}')">🗑</button></div>
+      ${(t!=null||d)?`<div class="rscore">${t!=null?`<div><span class="dl">スコア</span> <b>${t}</b></div>`:''}${d?`<div><span class="dl">詳細スコア</span> <b>${d.tot}</b> <span class="sm muted">（${d.s}-${d.a}-${d.p}）</span></div>`:''}</div>`:''}
+      ${delConfirm===r.id?`<div class="confirm"><div style="font-weight:800; color:var(--bad);">このラウンドを削除しますか？</div>
+        <div class="sm muted" style="margin-top:4px;">スコア・ショット・パットの記録がすべて消え、元に戻せません。</div>
+        <div class="btns"><button class="del" onclick="doDel('${r.id}')">削除する</button><button class="cancel" onclick="cancelDel()">やめる</button></div></div>`:''}
+    </div>`; };
+  $('app').innerHTML=`
     <h2>ラウンド</h2>
-    <button class="btn primary wide" onclick="newRound()">＋ 新しいラウンドを始める</button>
-    ${rounds.length?`<h2>続きから</h2>`+rounds.map(r=>`
-      <div class="card row">
-        <div><div style="font-weight:600">${esc(r.course||'コース未設定')}</div>
-        <div class="sm muted">${r.date}</div></div>
-        <div class="sp"></div>
-        <button class="btn sm" onclick="resume('${r.id}')">開く</button>
-        <button class="btn sm ghost" onclick="askDel('${r.id}')">🗑</button>
-      </div>`).join(''):'<p class="muted sm">まだ記録がありません。</p>'}
-    <h2>アプリ設定</h2>
-    <button class="btn wide" onclick="openAppSettings()">⚙ アプリ設定（ニックネーム・初期値）</button>
-    <h2 class="muted">100yd Sync</h2>
-    <p class="sm muted">結果・意図・タグとホールメモを手早く記録。AI（Gemini）による自動分析・アドバイスは今後追加予定です。</p>`;
-  $('footer').innerHTML=''; $('hbtn').style.display='none'; $('hsub').textContent='';
+    <button class="bigbtn" onclick="newRound()">＋ 新しいラウンドを始める</button>
+    ${all.length?`<div class="filters" style="margin-top:12px">${yOpt}${mOpt}</div>`:''}
+    ${rounds.length?rounds.map(card).join(''):(all.length?'<p class="sm muted" style="margin:10px 4px;">該当するラウンドがありません。</p>':'<p class="sm muted" style="margin:10px 4px;">まだ記録がありません。</p>')}
+    <h2>設定</h2>
+    <button class="ghostbtn" onclick="openAppSettings()">⚙ アプリ設定（名前・単位・番手・タグ）</button>`;
+  $('topsub').textContent='ホーム'; $('topbtns').innerHTML='';
 }
-function resume(id){ S.round=DB.round(id); S.holeIdx=0; go('card'); }
-function askDel(id){ if(confirm('このラウンドを削除しますか？')){ DB.delRound(id); render(); } }
+function resume(id){ const r=DB.round(id); if(!r)return; S.round=r; S.half=0; S.view='card'; render(); }
+function askDel(id){ delConfirm=id; render(); }
+function cancelDel(){ delConfirm=null; render(); }
+function doDel(id){ DB.delRound(id); delConfirm=null; render(); }
 
 /* ============ セットアップ ============ */
-let setup=null;
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function courseLabel(r){ if(r.course&&r.course.name) return r.course.name;
-  const h=(r.course&&r.course.halves)||[]; const n=[h[0]&&h[0].name,h[1]&&h[1].name].filter(Boolean).join(' / '); return n||'コース未設定'; }
-function syncHolesFromCourse(r){ r.holes.forEach((h,i)=>{ const half=i<9?0:1, pos=i%9; const H=r.course.halves[half];
-  h.half=half; h.posInHalf=pos; h.holeNo=H.startHole+pos; h.par=H.pars[pos]; }); }
-
-function newRound(){
-  const st=DB.settings();
-  const mkHalf=(sh)=>({name:'',startHole:sh,pars:Array(9).fill(4),dists:Array(9).fill(st.teeDefault[4]||350),tpl:Array(9).fill(null)});
-  setup={ editing:false, date:todayStr(), courseName:'', templateRoundId:null,
-    halves:[mkHalf(1),mkHalf(10)],
-    players:[{name:st.nickname||'自分',owner:true},{name:''},{name:''},{name:''}], logLevel:st.logLevel };
-  go('setup');
-}
-function editSettings(){ const r=S.round; const st=DB.settings();
-  setup={ editing:true, date:r.date, courseName:(r.course&&r.course.name)||'', templateRoundId:null,
-    halves:r.course.halves.map((h,hi)=>({name:h.name,startHole:h.startHole,pars:h.pars.slice(),
-      dists:[...Array(9)].map((_,pos)=>{ const td=r.holes[hi*9+pos]&&r.holes[hi*9+pos].teeDist; return td!=null?td:(st.teeDefault[h.pars[pos]]||350); }),
-      tpl:Array(9).fill(null) })),
-    players:[0,1,2,3].map(i=>({name:(r.players[i]&&r.players[i].name)||'',owner:i===0})),
-    logLevel:r.logLevel };
-  go('setup');
-}
 function pastCourses(){ const seen={}, out=[];
-  DB.index().forEach(x=>{ const r=DB.round(x.id); if(!r)return; const n=(r.course&&r.course.name||'').trim();
-    if(n&&!seen[n]){ seen[n]=1; out.push({name:n,id:x.id,date:r.date}); } });
-  return out;
-}
-function loadTemplate(id){ const r=DB.round(id); if(!r)return; const st=DB.settings();
-  setup.courseName=(r.course&&r.course.name)||setup.courseName;
-  setup.halves=r.course.halves.map((h,hi)=>{
-    const tpl=[...Array(9)].map((_,pos)=>{ const th=r.holes[hi*9+pos]; if(!th)return null;
-      const first=(th.owner.shots||[]).find(s=>s.phase==='toGreen');
-      return first&&first.remainYard!=null?first.remainYard:(th.teeDist!=null?th.teeDist:null); });
-    return {name:h.name,startHole:h.startHole,pars:h.pars.slice(),
-      dists:tpl.map((d,pos)=>d!=null?d:(st.teeDefault[h.pars[pos]]||350)), tpl};
-  });
-  setup.templateRoundId=id; render();
-}
-function applyDists(round){ round.holes.forEach((h,i)=>{ const half=i<9?0:1,pos=i%9;
-  const d=setup.halves[half].dists[pos]; if(d!=null) h.teeDist=d; }); }
+  DB.index().forEach(x=>{ const r=DB.round(x.id); if(!r||!r.course)return; const n=(r.course.name||'').trim();
+    if(n&&!seen[n]){ seen[n]=1; out.push({name:n,id:x.id,date:r.date}); } }); return out; }
+function newRound(){ const st=DB.settings();
+  setup={ editing:null, date:todayStr(), courseName:'', tpl:null,
+    halves:[ mkSetupHalf(1,st), mkSetupHalf(10,st) ],
+    players:[st.nickname||'自分','','',''], logLevel:st.logLevel };
+  S.view='setup'; render(); }
+function mkSetupHalf(startHole,st){ return { name:'', startHole, pars:Array(9).fill(4), yards:Array(9).fill(st.teeDefault[4]||350) }; }
+function editSetup(){ const r=S.round, st=DB.settings();
+  setup={ editing:r.roundId, date:r.date, courseName:(r.course.name||''), tpl:null,
+    halves:r.course.halves.map(hf=>({ name:hf.name, startHole:hf.startHole, pars:hf.pars.slice(), yards:(hf.yards||hf.pars.map(p=>st.teeDefault[p]||350)).slice() })),
+    players:[0,1,2,3].map(i=>(r.players[i]&&r.players[i].name)||''), logLevel:r.logLevel };
+  setup.players[0]=setup.players[0]||'自分';
+  S.view='setup'; render(); }
+function loadTpl(id){ const r=DB.round(id); if(!r)return;
+  setup.courseName=r.course.name||setup.courseName;
+  setup.halves=r.course.halves.map(hf=>({ name:hf.name, startHole:hf.startHole, pars:hf.pars.slice(), yards:(hf.yards||[]).slice() }));
+  setup.tpl=id; render(); }
+function setSPar(hi,i,p){ const st=DB.settings(); const HH=setup.halves[hi]; HH.pars[i]=p; HH.yards[i]=st.teeDefault[p]||HH.yards[i]; render(); }
+function setSYard(hi,i,v){ setup.halves[hi].yards[i]=+v; }
+function setSStart(hi,v){ setup.halves[hi].startHole=+v; render(); }
 function renderSetup(){
-  const du=DB.settings().units.toGreen;
-  const halfBlock=(hi,defLabel)=>{
-    const H=setup.halves[hi];
-    const parCell=(pos,pv)=>`<td class="parpick ${H.pars[pos]===pv?'on':''}" onclick="setPar(${hi},${pos},${pv})">${pv}</td>`;
-    const distCell=(pos)=>{ let o=''; for(let v=50;v<=600;v+=5){o+=`<option value="${v}" ${H.dists[pos]===v?'selected':''}>${v}</option>`;}
-      return `<td><select class="sel" onchange="setDist(${hi},${pos},+this.value)">${o}</select></td>`; };
-    const rows=[...Array(9)].map((_,pos)=>`<tr>
-        <td class="hno ${pos===0?'start':''}">${H.startHole+pos}</td>
-        ${parCell(pos,3)}${parCell(pos,4)}${parCell(pos,5)}
-        ${distCell(pos)}</tr>`).join('');
-    return `<h2>${hi===0?'前半':'後半'}</h2>
-      <div class="card">
-        <div class="row" style="margin-bottom:10px">
-          <span class="sm muted" style="min-width:64px">コース名</span>
-          <input type="text" placeholder="例：${defLabel}" value="${esc(H.name)}" oninput="setup.halves[${hi}].name=this.value" style="flex:1"></div>
-        <div class="row" style="margin-bottom:10px"><span class="sm muted" style="min-width:64px">開始ホール</span>
-          <select class="sel" onchange="setStart(${hi},+this.value)">${[...Array(18)].map((_,k)=>`<option value="${k+1}" ${H.startHole===k+1?'selected':''}>${k+1}</option>`).join('')}</select></div>
-        <div class="cardwrap"><table class="holetbl">
-          <tr><th>ホール</th><th>3</th><th>4</th><th>5</th><th>距離(${du})</th></tr>
-          ${rows}
-        </table></div>
-        <div class="sm muted center" style="margin-top:6px">パー計 ${sum(H.pars)}</div>
-      </div>`;
-  };
-  const pc=pastCourses();
-  $('main').innerHTML=`
-    <h2>日付</h2>
-    <div class="card"><input type="date" value="${setup.date}" oninput="setup.date=this.value" style="font-size:16px"></div>
-    <h2>コース名</h2>
-    <div class="card">
-      <input type="text" placeholder="コース名（例：○○カントリー）" value="${esc(setup.courseName||'')}" oninput="setup.courseName=this.value">
-      ${pc.length?`<div class="sm muted" style="margin:10px 0 4px">履歴から同じ設定で開始（パー・当時のティー距離を読込）</div>
-        <div class="seg">${pc.map(c=>`<div class="opt ${setup.templateRoundId===c.id?'on':''}" onclick="loadTemplate('${c.id}')">${esc(c.name)}<span class="sm muted"> ${c.date}</span></div>`).join('')}</div>`:''}
-      ${setup.templateRoundId?`<div class="sm" style="color:var(--good);margin-top:8px">履歴を読込みました（パー・ティー距離）</div>`:''}
-    </div>
-    ${halfBlock(0,'梅・OUT')}${halfBlock(1,'松・IN')}
-    <h2>プレイヤー（最大4人）</h2>
-    <div class="card grid">
-      ${setup.players.map((p,i)=>`<div class="row"><span class="chip">${i===0?'自分':'同伴'+i}</span>
-        <input type="text" placeholder="${i===0?'自分の名前':'同伴者名（空欄で不参加）'}" value="${esc(p.name)}"
-        oninput="setup.players[${i}].name=this.value" style="flex:1"></div>`).join('')}
-    </div>
-    <h2>記録レベル</h2>
-    <div class="card"><div class="seg">${LV.map(o=>`<div class="opt ${setup.logLevel===o.v?'on':''}" onclick="setup.logLevel=${o.v};render()">${o.l}</div>`).join('')}</div></div>`;
-  $('footer').innerHTML=`<div class="inner row">${setup.editing?`<button class="btn ghost sm" onclick="toCard()">キャンセル</button><div class="sp"></div>`:''}
-    <button class="btn primary ${setup.editing?'':'wide'}" onclick="commitSetup()">${setup.editing?'変更を保存':'このラウンドを開始'}</button></div>`;
-  $('hbtn').style.display='none'; $('hsub').textContent=setup.editing?'設定を編集':'新規ラウンド設定';
+  const editing=!!setup.editing, pc=pastCourses();
+  const block=(hi)=>{ const HH=setup.halves[hi];
+    const rows=[...Array(9)].map((_,i)=>{ const no=HH.startHole+i;
+      const pick=p=>`<td class="parpick ${HH.pars[i]===p?'on':''}" onclick="setSPar(${hi},${i},${p})">${p}</td>`;
+      return `<tr><td class="hno ${i===0?'start':''}">${no}</td>${pick(3)}${pick(4)}${pick(5)}
+        <td><select onchange="setSYard(${hi},${i},this.value)">${yardOpts(HH.yards[i])}</select></td></tr>`; }).join('');
+    return `<h2>${hi===0?'前半 OUT':'後半 IN'}</h2><div class="card">
+      <div class="setline"><span class="slab">ハーフ名</span><input type="text" value="${esc(HH.name)}" placeholder="例：梅・OUT" oninput="setup.halves[${hi}].name=this.value"></div>
+      <div class="setline"><span class="slab">開始ホール</span><select onchange="setSStart(${hi},this.value)">${[...Array(18)].map((_,k)=>`<option value="${k+1}" ${HH.startHole===k+1?'selected':''}>${k+1}</option>`).join('')}</select></div>
+      <div class="cardwrap"><table class="holetbl"><tr><th>ホール</th><th>3</th><th>4</th><th>5</th><th>距離(y)</th></tr>${rows}</table></div>
+      <div class="sm muted center" style="margin-top:6px">パー計 ${HH.pars.reduce((a,b)=>a+b,0)}</div></div>`; };
+  $('app').innerHTML=`
+    <h2>日付</h2><div class="card"><input type="date" value="${setup.date}" oninput="setup.date=this.value"></div>
+    <h2>コース名</h2><div class="card"><input type="text" value="${esc(setup.courseName)}" placeholder="例：○○カントリークラブ" oninput="setup.courseName=this.value">
+      ${pc.length?`<div class="sm muted" style="margin:10px 0 6px">履歴から同じ設定で開始</div><div class="seg">${pc.map(c=>`<div class="segopt ${setup.tpl===c.id?'on':''}" onclick="loadTpl('${c.id}')">${esc(c.name)}<span class="sm muted"> ${c.date}</span></div>`).join('')}</div>`:''}</div>
+    ${block(0)}${block(1)}
+    <h2>プレイヤー（最大4人）</h2><div class="card grid2">${setup.players.map((p,i)=>`<div class="prow"><span class="chip">${i===0?'自分':'同伴'+i}</span><input type="text" value="${esc(p)}" placeholder="${i===0?'自分の名前':'同伴者名（空欄で不参加）'}" oninput="setup.players[${i}]=this.value"></div>`).join('')}</div>
+    <h2>記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${setup.logLevel===v?'on':''}" onclick="setup.logLevel=${v};render()">${l}</div>`).join('')}</div></div>`;
+  $('topsub').textContent=editing?'ラウンド設定':'新規ラウンド';
+  $('topbtns').innerHTML=`${editing?`<button class="iconbtn" onclick="goHome()">ホームへ</button> `:''}<button class="iconbtn primary" onclick="commitSetup()">${editing?'保存':'開始'}</button>`;
 }
-function setPar(hi,i,pv){ const H=setup.halves[hi]; H.pars[i]=pv;
-  const st=DB.settings(); H.dists[i]=(H.tpl&&H.tpl[i]!=null)?H.tpl[i]:(st.teeDefault[pv]||350); render(); }
-function setDist(hi,i,v){ setup.halves[hi].dists[i]=v; render(); }
-function setStart(hi,v){ setup.halves[hi].startHole=v; render(); }
 function commitSetup(){
-  const halves=setup.halves.map(h=>({name:(h.name||'').trim(),startHole:+h.startHole||1,pars:h.pars.slice()}));
-  const cname=(setup.courseName||'').trim();
-  if(setup.editing){
-    const r=S.round; r.date=setup.date; r.course.name=cname; r.course.halves=halves; r.logLevel=setup.logLevel;
-    r.players=setup.players.map((p,i)=>({id:(r.players[i]&&r.players[i].id)||('p'+(i+1)),name:(p.name||'').trim(),owner:i===0}));
-    syncHolesFromCourse(r); applyDists(r); save(); go('card'); return;
-  }
-  const players=setup.players.map((p,i)=>({id:'p'+(i+1),name:(p.name||'').trim()||(i===0?'自分':''),owner:i===0})).filter(p=>p.owner||p.name);
-  const id=todayStr()+'-'+Date.now().toString().slice(-4);
-  const round={roundId:id,date:setup.date,logLevel:setup.logLevel,course:{name:cname,halves},players,
-    holes:[...Array(18)].map((_,i)=>({idx:i,scores:{},owner:{shots:[],putts:[],other:0}}))};
-  syncHolesFromCourse(round); applyDists(round); S.round=round; save(); S.holeIdx=0; go('card');
+  const halves=setup.halves.map(h=>({ name:(h.name||'').trim(), startHole:+h.startHole||1, pars:h.pars.slice(), yards:h.yards.slice() }));
+  const cname=(setup.courseName||'').trim() || [halves[0].name,halves[1].name].filter(Boolean).join(' / ') || 'コース未設定';
+  const players=playersOf(setup.players);
+  if(setup.editing){ const r=S.round;
+    r.date=setup.date; r.logLevel=setup.logLevel; r.course={name:cname,halves}; r.players=players;
+    r.holes.forEach((h,i)=>{ const hi=i<9?0:1, pos=i%9, HH=halves[hi];
+      h.half=hi; h.posInHalf=pos; h.holeNo=HH.startHole+pos; h.par=HH.pars[pos]; h.yard=HH.yards[pos]; });
+    save(); S.view='card'; render(); return; }
+  const id=todayStr()+'-'+String(Date.now()).slice(-4);
+  const holes=[...Array(18)].map((_,i)=>{ const hi=i<9?0:1, pos=i%9, HH=halves[hi];
+    return { holeNo:HH.startHole+pos, half:hi, posInHalf:pos, par:HH.pars[pos], yard:HH.yards[pos], scores:{}, puttScore:null, note:'', owner:null }; });
+  S.round={ roundId:id, date:setup.date, logLevel:setup.logLevel, course:{name:cname,halves}, players, holes };
+  save(); S.half=0; S.view='card'; render();
 }
 
 /* ============ アプリ設定 ============ */
-let appset=null;
-function openAppSettings(){ appset=DB.settings(); go('appset'); }
+function openAppSettings(){ appset=DB.settings(); S.view='appset'; render(); }
+function saveAppSettings(){ DB.saveSettings(appset); goHome(); }
+function setAsNick(v){ appset.nickname=v; }
+function setAsLv(v){ appset.logLevel=v; render(); }
+function setAsUnit(key,u){ appset.units[key]=u; render(); }
+function setAsTee(par,v){ appset.teeDefault[par]=+v; }
+function setAsClub(i,v){ appset.clubs[i].name=v; }
+function setAsClubDist(i,v){ appset.clubs[i].dist=+v; }
+function addAsClub(){ appset.clubs.push({name:'新',dist:150}); render(); }
+function delAsClub(i){ appset.clubs.splice(i,1); render(); }
+function moveClub(i,d){ const a=appset.clubs, j=i+d; if(j<0||j>=a.length)return; const t=a[i];a[i]=a[j];a[j]=t; render(); }
+function reorderBy(arr,order){ const c=order.map(i=>arr[i]); arr.length=0; c.forEach(x=>arr.push(x)); }
+function attachSortable(container,done){
+  container.querySelectorAll('[data-si]').forEach(row=>{ const h=row.querySelector('.drag'); if(!h)return;
+    h.addEventListener('pointerdown',function(ev){ ev.preventDefault(); row.classList.add('dragging');
+      const move=function(e){ e.preventDefault(); const y=e.clientY; const sibs=[...container.querySelectorAll('[data-si]')];
+        for(const s of sibs){ if(s===row)continue; const r=s.getBoundingClientRect();
+          if(y>=r.top&&y<=r.bottom){ container.insertBefore(row,(y<r.top+r.height/2)?s:s.nextSibling); break; } } };
+      const up=function(){ row.classList.remove('dragging');
+        window.removeEventListener('pointermove',move,{passive:false}); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',up);
+        const order=[...container.querySelectorAll('[data-si]')].map(s=>+s.dataset.si); done(order); };
+      window.addEventListener('pointermove',move,{passive:false}); window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
+    });
+  });
+}
+function setupSortables(){ const cc=$('clubsort'); if(cc) attachSortable(cc,order=>{ reorderBy(appset.clubs,order); render(); });
+  document.querySelectorAll('[data-tagsort]').forEach(el=>{ const path=el.dataset.tagsort;
+    attachSortable(el,order=>{ reorderBy(tagArr(appset.tags,path),order); render(); }); }); }
+function tagArr(tags,path){ const p=path.split('.'); let o=tags; p.forEach(k=>o=o[k]); return o; }
+function delAsTag(path,i){ tagArr(appset.tags,path).splice(i,1); render(); }
+function moveTag(path,i,d){ const a=tagArr(appset.tags,path), j=i+d; if(j<0||j>=a.length)return; const t=a[i];a[i]=a[j];a[j]=t; render(); }
+function addAsTag(path){ const el=$('newtag_'+path.replace(/\./g,'_')); const v=(el&&el.value||'').trim(); if(!v)return;
+  const a=tagArr(appset.tags,path); if(!a.includes(v))a.push(v); render(); }
+function unitRow(label,key,opts){ return `<div class="setline"><span class="slab">${label}</span><div class="seg" style="flex:1">${opts.map(u=>`<div class="segopt ${appset.units[key]===u?'on':''}" style="min-width:52px" onclick="setAsUnit('${key}','${u}')">${u}</div>`).join('')}</div></div>`; }
 function renderAppSettings(){
   const a=appset;
-  const teeRow=(par)=>`<div class="row"><span>Par ${par}</span><div class="sp"></div>
-    <select class="sel" onchange="setTee(${par},+this.value)">${(function(){let o='';for(let v=50;v<=600;v+=5){o+=`<option value="${v}" ${a.teeDefault[par]===v?'selected':''}>${v}</option>`;}return o;})()}</select><span class="unit">y</span></div>`;
-  $('main').innerHTML=`
-    <h2>ニックネーム</h2>
-    <div class="card"><input type="text" placeholder="スコアカードに表示する名前" value="${esc(a.nickname)}" oninput="appset.nickname=this.value">
-      <div class="sm muted" style="margin-top:6px">新規ラウンドの「自分」の初期名になります（ラウンド設定で変更可）。</div></div>
-    <h2>ティーショットの残り距離（初期値）</h2>
-    <div class="card grid">${teeRow(3)}${teeRow(4)}${teeRow(5)}
-      <div class="sm muted">各ホールのパーに応じて、道中1打目の残りヤードの初期値になります。</div></div>
-    <h2>番手設定</h2>
-    <div class="card grid">
-      ${a.clubs.map((c,i)=>`<div class="row">
-        <input type="text" value="${esc(c.name)}" oninput="setClubName(${i},this.value)" style="width:76px">
-        <span class="sm muted">参考</span>
-        <select class="sel" onchange="setClubDist(${i},+this.value)">${(function(){let o='';for(let v=0;v<=350;v+=5){o+=`<option value="${v}" ${c.dist===v?'selected':''}>${v}</option>`;}return o;})()}</select><span class="unit">y</span>
-        <div class="sp"></div><span class="mv" onclick="delClub(${i})">✕</span></div>`).join('')}
-      <div class="row"><button class="btn sm" onclick="addClub()">＋ 番手を追加</button>
-        <div class="sp"></div><button class="btn sm ghost" onclick="resetClubs()">基本セットに戻す</button></div>
-      <div class="sm muted">参考飛距離は、セカンド以降で番手を選んだときの残り距離の初期値に使われます。</div>
-    </div>
-    <h2>タグ設定</h2>
-    <div class="card grid">
-      ${tagAdminBlock('道中','through')}
-      ${tagAdminBlock('アプローチ','approach')}
-      ${tagAdminBlock('パット','putt')}
-      <div class="sm muted">ラウンド中の各入力画面でも新しいタグを追加できます。ここでは不要なタグの削除・整理ができます（タグ名をタップで削除）。</div>
-    </div>
-    <h2>単位</h2>
-    <div class="card grid">
-      ${unitRow('道中','toGreen',['y','m'])}
-      ${unitRow('アプローチ','approach',['y','m','歩'])}
-      ${unitRow('グリーン上','putt',['y','m','歩'])}
-    </div>
-    <h2>デフォルト記録レベル</h2>
-    <div class="card"><div class="seg">${LV.map(o=>`<div class="opt ${a.logLevel===o.v?'on':''}" onclick="appset.logLevel=${o.v};render()">${o.l}</div>`).join('')}</div></div>`;
-  $('footer').innerHTML=`<div class="inner row"><button class="btn ghost sm" onclick="go('home')">キャンセル</button>
-    <div class="sp"></div><button class="btn primary" onclick="saveAppSettings()">保存</button></div>`;
-  $('hbtn').style.display='none'; $('hsub').textContent='アプリ設定';
-}
-function setTee(par,v){ appset.teeDefault[par]=v; render(); }
-function setClubName(i,v){ appset.clubs[i].name=v; }
-function setClubDist(i,v){ appset.clubs[i].dist=v; render(); }
-function addClub(){ appset.clubs.push({name:'新',dist:150}); render(); }
-function delClub(i){ appset.clubs.splice(i,1); render(); }
-function resetClubs(){ appset.clubs=baseClubs(); render(); }
-function unitRow(label,key,opts){ return `<div class="row"><span>${label}</span><div class="sp"></div>
-  <div class="seg" style="flex:0 0 auto">${opts.map(u=>`<div class="opt ${appset.units[key]===u?'on':''}" style="min-width:52px" onclick="setUnit('${key}','${u}')">${u}</div>`).join('')}</div></div>`; }
-function setUnit(key,u){ appset.units[key]=u; render(); }
-function saveAppSettings(){ DB.saveSettings(appset); go('home'); }
-function numRange(a,b,s){ const r=[]; for(let v=a;v<=b;v+=s)r.push(v); return r; }
-// 残り距離の選択肢。ヤード/m は 20以内を1刻み・21以上を5刻み。歩は1刻み
-function distValues(stage,unit){
-  if(unit==='歩') return numRange(1, stage==='putt'?25:30, 1);
-  if(stage==='toGreen'||stage==='approach') return numRange(0,20,1).concat(numRange(25, stage==='toGreen'?350:100, 5));
-  return numRange(0,30,1); // パットの y/m 距離
+  const teeRow=par=>`<div class="setline"><span class="slab">Par ${par}</span><select onchange="setAsTee(${par},this.value)">${yardOpts(a.teeDefault[par])}</select></div>`;
+  const clubRow=(c,i)=>`<div class="prow" data-si="${i}"><span class="drag">☰</span><input type="text" value="${esc(c.name)}" oninput="setAsClub(${i},this.value)" style="flex:1">
+    <select onchange="setAsClubDist(${i},this.value)" style="min-width:82px">${clubDistOpts(c.dist)}</select>
+    <button class="trash" style="min-width:40px" onclick="delAsClub(${i})">✕</button></div>`;
+  const TG=[['through.pre','ショット','実行前'],['through.post','ショット','実行〜結果'],['approach.pre','アプローチ','実行前'],['approach.post','アプローチ','実行〜結果'],['putt','パット','']];
+  const tagSection=([path,phase,sub])=>{ const arr=tagArr(a.tags,path); const id='newtag_'+path.replace(/\./g,'_');
+    return `<div class="taghdr">${phase}${sub?' ／ '+sub:''}</div>
+      <div class="grid2" data-tagsort="${path}" style="margin-top:8px">${arr.map((t,i)=>`<div class="prow" data-si="${i}"><span class="drag">☰</span><span style="flex:1">${esc(t)}</span>
+        <button class="trash" style="min-width:40px" onclick="delAsTag('${path}',${i})">✕</button></div>`).join('')}</div>
+      <div class="addtag"><input type="text" id="${id}" placeholder="新しいタグ" onkeydown="if(event.key==='Enter'){event.preventDefault();addAsTag('${path}')}"><button onclick="addAsTag('${path}')">追加</button></div>`; };
+  $('app').innerHTML=`
+    <h2>ニックネーム</h2><div class="card"><input type="text" value="${esc(a.nickname)}" placeholder="例：自分" oninput="setAsNick(this.value)">
+      <div class="sm muted" style="margin-top:6px">新規ラウンド時の「自分」の初期名です（ラウンドごとにラウンド設定で変更できます）。</div></div>
+    <h2>ティーの残り距離（初期値）</h2><div class="card">${teeRow(3)}${teeRow(4)}${teeRow(5)}
+      <div class="sm muted" style="margin-top:2px">新規ラウンドのパー別ヤードの初期値です。</div></div>
+    <h2>単位</h2><div class="card">${unitRow('ショット','toGreen',['y','m'])}${unitRow('アプローチ','approach',['y','m','歩'])}${unitRow('パット','putt',['歩','y','m'])}</div>
+    <h2>番手（☰でドラッグ並べ替え・飛距離）</h2><div class="card grid2" id="clubsort">${a.clubs.map(clubRow).join('')}
+      <button class="ghostbtn" onclick="addAsClub()">＋ 番手を追加</button>
+      <div class="sm muted">飛距離は、ショットでクラブを選んだときの残りヤードの初期値になります。</div></div>
+    <h2>タグ（並べ替え・追加・削除）</h2><div class="card" style="padding-top:2px">${TG.map(tagSection).join('')}</div>
+    <h2>デフォルト記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${a.logLevel===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>`;
+  $('topsub').textContent='アプリ設定';
+  $('topbtns').innerHTML=`<button class="iconbtn" onclick="goHome()">キャンセル</button> <button class="iconbtn primary" onclick="saveAppSettings()">保存</button>`;
+  setupSortables();
 }
 
 /* ============ スコアカード ============ */
-function holeScore(h){ const o=owner(); const det=h.owner.shots.length+h.owner.putts.length+(h.owner.other||0);
-  // ownerのスコアは詳細から自動、その他は手入力scores
-  return {det};
-}
-function cellClass(score,par){ if(score==null) return ''; const d=score-par;
-  if(d<=-2)return'eagle'; if(d===-1)return'birdie'; if(d===0)return'par'; if(d===1)return'bogey'; return'dbl'; }
-function pScore(h,pid){ const o=owner();
-  if(h.scores[pid]!=null) return h.scores[pid];
-  if(pid===o.id){ const d=h.owner.shots.length+h.owner.putts.length; return d>0?d:null; }
-  return null; }
+function players(){ return S.round.players.filter(p=>p.owner||p.name); }
+function cls(v,par){ if(v==null)return''; const d=v-par; if(d<=-2)return'eagle'; if(d===-1)return'birdie'; if(d===0)return'par0'; if(d===1)return'bogey'; return'dbl'; }
+function scoreSel(h,pid){ const v=h.scores[pid]; let o='<option value="">·</option>';
+  for(let n=1;n<=15;n++)o+=`<option value="${n}" ${v===n?'selected':''}>${n}</option>`;
+  return `<select class="ssel ${cls(v,h.par)}" onchange="setScore(${h.__i},'${pid}',this.value)">${o}</select>`; }
+function puttSel(h){ const v=h.puttScore; let o='<option value="">–</option>';
+  for(let n=0;n<=9;n++)o+=`<option value="${n}" ${v===n?'selected':''}>${n}</option>`;
+  return `<select class="psel" onchange="setPuttSc(${h.__i},this.value)">${o}</select>`; }
+function scoreCell(h,pid,owner){ const v=h.scores[pid], diff=v!=null?v-h.par:null;
+  const badge=(owner&&h.owner)?`<div class="cntbadge">${throughCount(h)}-${approachCount(h)}-${puttCount(h)}</div>`:'';
+  const putt=owner?`<div class="puttrow"><span class="plab">パット</span>${puttSel(h)}</div>`:'';
+  return `<div class="pcellwrap ${owner?'me':''}">${scoreSel(h,pid)}<div class="sdiff ${cls(v,h.par)}">${diff!=null?(diff>=0?'+':'')+diff:''}</div>${putt}${badge}</div>`; }
+function setScore(i,pid,val){ const h=S.round.holes[i]; if(val==='')delete h.scores[pid]; else h.scores[pid]=+val; save(); renderCard(); }
+function setPuttSc(i,val){ const h=S.round.holes[i]; h.puttScore=(val===''?null:+val); save(); }
 function renderCard(){
-  const r=S.round, ps=r.players.filter(p=>p.owner||p.name);
-  const half=(a,b)=>ps.map(p=>{let s=0,any=false; for(let i=a;i<b;i++){const v=pScore(r.holes[i],p.id); if(v!=null){s+=v;any=true;}} return any?s:'';});
-  const mkHalf=(a,b,hi)=>{ const label=(r.course.halves[hi]&&r.course.halves[hi].name)||(hi===0?'OUT':'IN'); return `
-    <div class="cardwrap" style="margin-bottom:10px"><table class="sc">
-      <tr><th class="name">${esc(label)}</th>${[...Array(b-a)].map((_,i)=>`<th class="hole" onclick="openHole(${a+i})">${r.holes[a+i].holeNo}</th>`).join('')}<th class="sub">計</th></tr>
-      <tr><td class="name muted">PAR</td>${[...Array(b-a)].map((_,i)=>`<td class="muted">${r.holes[a+i].par}</td>`).join('')}<td class="sub muted">${sum(r.holes.slice(a,b).map(h=>h.par))}</td></tr>
-      ${ps.map((p,pi)=>`<tr><td class="name">${esc(p.name)}${p.owner?' ★':''}</td>${[...Array(b-a)].map((_,i)=>{
-        const v=pScore(r.holes[a+i],p.id); return `<td class="${cellClass(v,r.holes[a+i].par)}" onclick="openHole(${a+i})">${v??'·'}</td>`;}).join('')}
-        <td class="sub">${half(a,b)[pi]}</td></tr>`).join('')}
-    </table></div>`; };
-  const tot=p=>{let s=0,any=false; r.holes.forEach(h=>{const v=pScore(h,p.id); if(v!=null){s+=v;any=true;}}); return any?s:'—';};
-  const playedPar=p=>{let s=0; r.holes.forEach(h=>{if(pScore(h,p.id)!=null)s+=h.par;}); return s;};
-  const diff=p=>{const t=tot(p); if(t==='—')return ''; const d=t-playedPar(p); return (d>=0?'+':'')+d;};
-  $('main').innerHTML=`
-    <div class="row"><div><div style="font-weight:600">${esc(courseLabel(r))}</div>
-      <div class="sm muted">${r.date} ・ ${LV.find(l=>l.v===r.logLevel).l}</div></div>
-      <div class="sp"></div><button class="btn sm ghost" onclick="editSettings()">⚙ 設定</button></div>
-    ${mkHalf(0,9,0)}${mkHalf(9,18,1)}
-    <h2>合計</h2><div class="card">${ps.map(p=>`<div class="row"><span>${esc(p.name)}${p.owner?' ★':''}</span><div class="sp"></div>
-      <b style="font-size:20px">${tot(p)}</b> <span class="sm muted">${diff(p)?'('+diff(p)+')':''}</span></div>`).join('')}</div>
-    <p class="sm muted center" style="margin-top:16px">ホール番号・セルをタップで入力画面へ</p>`;
-  $('footer').innerHTML=`<div class="inner row"><button class="btn ghost sm" onclick="go('home')">ホーム</button>
-    <button class="btn ghost sm" onclick="go('shotlist')">一覧</button>
-    <div class="sp"></div><button class="btn primary" onclick="openHole(${nextUnfinished()})">${anyEntered()?'続きを入力':'No.1 から入力'}</button></div>`;
-  $('hbtn').style.display='none'; $('hsub').textContent='';
+  const r=S.round, ps=players(), h0=S.half*9;
+  document.documentElement.style.setProperty('--np', ps.length);
+  let rows='';
+  for(let i=0;i<9;i++){ const idx=h0+i, h=r.holes[idx]; h.__i=idx;
+    const cells=ps.map(p=>scoreCell(h,p.id,!!p.owner)).join('');
+    rows+=`<div class="scrow"><div class="hcell" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}</span><span class="meta">Par ${h.par}・${h.yard}y</span><span class="go">›</span></div>${cells}</div>`; }
+  const halfTot=(hh,pid)=>{ let s=0,ps2=0,any=false; for(let i=0;i<9;i++){const h=r.holes[hh*9+i], v=h.scores[pid]; if(v!=null){s+=v;ps2+=h.par;any=true;}} return any?{s,d:s-ps2}:null; };
+  const cellTot=t=> t?`${t.s} <span class="ou">(${t.d>=0?'+':''}${t.d})</span>`:'–';
+  const grand=pid=>{ const a=halfTot(0,pid),b=halfTot(1,pid); if(!a&&!b)return null; return {s:(a?a.s:0)+(b?b.s:0), d:(a?a.d:0)+(b?b.d:0)}; };
+  const totRow=(lab,fn,cl)=>`<div class="totrow ${cl||''}"><div class="cell tlab">${lab}</div>${ps.map(p=>`<div class="cell tnum">${cellTot(fn(p.id))}</div>`).join('')}</div>`;
+  const totalsHtml = S.half===0 ? totRow('計',pid=>halfTot(0,pid))
+    : totRow('計',pid=>halfTot(1,pid))+totRow('前半',pid=>halfTot(0,pid),'sub')+totRow('合計',grand,'grand');
+  const hn=hf=>(r.course.halves[hf]&&r.course.halves[hf].name)||(hf===0?'OUT':'IN');
+  $('app').innerHTML=`
+    <div class="halfsw"><button class="${S.half===0?'on':''}" onclick="setHalf(0)">前半 ${esc(hn(0))}</button><button class="${S.half===1?'on':''}" onclick="setHalf(1)">後半 ${esc(hn(1))}</button></div>
+    <div class="sc"><div class="scrow schead"><div class="cell" style="text-align:left; padding-left:8px;">ホール</div>
+      ${ps.map(p=>`<div class="cell">${esc(p.name)}${p.owner?' ★':''}</div>`).join('')}</div>
+      ${rows}${totalsHtml}</div>`;
+  $('topsub').textContent=esc(r.course.name||'ラウンド')+' ・ '+r.date;
+  $('topbtns').innerHTML=`<button class="iconbtn" onclick="editSetup()">⚙ 設定</button>`;
 }
-function anyEntered(){ return S.round.holes.some(h=>h.owner.shots.length||h.owner.putts.length||Object.keys(h.scores).length); }
-function nextUnfinished(){ const i=S.round.holes.findIndex(h=>!(h.owner.putts.length||Object.keys(h.scores).length)); return i<0?0:i; }
-function ownerSummary(){
-  const shots=[]; S.round.holes.forEach(h=>h.owner.shots.forEach(s=>shots.push(s)));
-  const withCalc=shots.map(calc).filter(Boolean);
-  if(!withCalc.length) return '';
-  const jAvg=(withCalc.reduce((a,c)=>a+c.j,0)/withCalc.length).toFixed(2);
-  const luck=withCalc.reduce((a,c)=>a+c.l,0);
-  const nice=shots.filter(s=>s.execution===3).length, exe=shots.filter(s=>s.execution!=null).length;
-  return `<h2>自分の分析（3軸）</h2><div class="card kpi">
-    <div class="k"><div class="v" style="color:var(--teal)">${exe?Math.round(nice/exe*100):0}%</div><div class="l">実行ナイス率</div></div>
-    <div class="k"><div class="v" style="color:${jAvg>=0?'var(--good)':'var(--bad)'}">${jAvg>=0?'+':''}${jAvg}</div><div class="l">判断 平均</div></div>
-    <div class="k"><div class="v" style="color:var(--amber)">+${luck}</div><div class="l">運の収支</div></div></div>`;
-}
+function setHalf(h){ S.half=h; renderCard(); }
 
-/* ============ 一覧（確認画面） ============ */
-function listTabs(a){ return `<div class="tabs"><div class="t ${a==='shot'?'on':''}" onclick="go('shotlist')">ショット</div><div class="t ${a==='putt'?'on':''}" onclick="go('puttlist')">パット</div></div>`; }
-function halfNameOf(h){ const r=S.round; const hf=h.half!=null?h.half:0; return (r.course.halves[hf]&&r.course.halves[hf].name)||(hf===0?'OUT':'IN'); }
-function renderShotList(){
-  const r=S.round;
-  const blocks=r.holes.map(h=>{ if(!h.owner.shots.length) return '';
-    return `<h3 style="margin:14px 0 6px">${esc(halfNameOf(h))} No.${h.holeNo} Par${h.par}</h3><div class="card">${h.owner.shots.map(s=>{
-      return `<div class="listitem"><b>${s.club||''}</b> <span class="sm muted">${s.phase==='approach'?'AP':'道中'} ${s.remainYard!=null?s.remainYard+(s.unit||'y'):''}${s.result!=null?' /'+labResult(s.result,s.phase):''}${s.intent?' '+labIntent(s.intent):''}</span>${tagChips(shotTags(s))}</div>`;}).join('')}${h.note?`<div class="sm muted" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">📝 ${esc(h.note)}</div>`:''}</div>`;
-  }).filter(Boolean).join('');
-  $('main').innerHTML=`<h2>一覧</h2>${listTabs('shot')}${blocks||'<p class="muted sm">まだショットの記録がありません。</p>'}`;
-  $('footer').innerHTML=`<div class="inner row"><button class="btn ghost sm" onclick="toCard()">◀ スコアカード</button><div class="sp"></div></div>`;
-  $('hbtn').style.display=''; $('hsub').textContent='一覧';
-}
-function renderPuttList(){
-  const r=S.round;
-  const puttLine=(p)=>{ if(p.ok) return `<div class="listitem">🥅 <b>OK</b> <span class="sm muted">打たず・1打</span></div>`;
-    const t=p.touch?((p.touch>0?'+':'')+p.touch):'0';
-    return `<div class="listitem">🥅 <b>${p.steps}${p.unit||'歩'}</b> <span class="sm muted">${labPR(p.result)}${p.slopeV?' /'+labSV(p.slopeV):''}${p.slopeH?labSH(p.slopeH):''} 実行${labExec(p.exec)} タッチ${t}</span>${tagChips(puttTags(p))}</div>`; };
-  const blocks=r.holes.map(h=>{ if(!h.owner.putts.length) return '';
-    return `<h3 style="margin:14px 0 6px">${esc(halfNameOf(h))} No.${h.holeNo} Par${h.par}</h3><div class="card">${h.owner.putts.map(puttLine).join('')}</div>`;
-  }).filter(Boolean).join('');
-  $('main').innerHTML=`<h2>一覧</h2>${listTabs('putt')}${blocks||'<p class="muted sm">まだパットの記録がありません。</p>'}`;
-  $('footer').innerHTML=`<div class="inner row"><button class="btn ghost sm" onclick="toCard()">◀ スコアカード</button><div class="sp"></div></div>`;
-  $('hbtn').style.display=''; $('hsub').textContent='一覧';
-}
+/* ============ 詳細（ショット/アプローチ/パット） ============ */
+function availStages(){ const lv=S.round.logLevel; return { through:lv>=3, approach:lv>=2, putt:true }; }
+function firstStage(){ const lv=S.round.logLevel; return lv>=3?'through':(lv>=2?'approach':'putt'); }
+function openDetail(i){ S.detailHole=i; const own=OWN();
+  if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
+  S.stage=firstStage(); S.view='detail'; render(); }
+function setStage(st){ if(!availStages()[st])return; S.stage=st; render(); }
+function stgObj(){ return OWN()[S.stage]; }
+function shots(){ return stgObj().shots; }
+function pickClub(i,c){ const s=shots()[i]; s.club=c;
+  if(S.stage==='through' && i>0){ const d=clubDist(c); if(d!=null)s.yard=d; }
+  save(); render(); }
+function setPen(i,v){ shots()[i].pen=+v; save(); render(); }
+function setShotYard(i,v){ shots()[i].yard=(v===''?null:+v); save(); }
+function addShot(){ const a=shots(); const s=mkShot();
+  if(S.stage==='through'){ s.yard = a.length===0 ? H().yard : null; }
+  else if(S.stage==='approach'){ s.yard = a.length===0 ? null : halfFloor(a[a.length-1].yard); }
+  a.push(s); save(); render(); }
+function shotMin(){ return S.stage==='through'?1:0; }
+function remLast(){ const a=shots(); if(a.length>shotMin())a.pop(); save(); render(); }
+function delShot(i){ const a=shots(); if(a.length>shotMin())a.splice(i,1); save(); render(); }
+function toggleTag(i,kind,t){ const arr=shots()[i][kind]; const j=arr.indexOf(t); if(j>=0)arr.splice(j,1); else arr.push(t); save(); render(); }
+function addTagInput(i,kind){ const el=$('shottag_'+kind+'_'+i); const v=(el&&el.value||'').trim(); if(!v)return;
+  const s=DB.settings(); const master=s.tags[S.stage][kind]; if(!master.includes(v)){ master.push(v); DB.saveSettings(s); }
+  const arr=shots()[i][kind]; if(!arr.includes(v))arr.push(v); save(); render(); }
+function setNote(i,v){ shots()[i].note=v; save(); }
+function setRes(r){ const t=OWN().through; t.res=(t.res===r?null:r); save(); render(); }
+function setRemain(v){ OWN().through.remain=+v; save(); }
+function setEval(kind,v){ const e=stgObj().eval; e[kind]=(e[kind]===v?null:v);
+  if(S.stage==='approach'&&kind==='result'){ OWN().putt.okOn=(e.result==='ok'); } save(); render(); }
+function setYardHole(v){ const h=H(); h.yard=+v; if(S.round.course.halves[h.half]) S.round.course.halves[h.half].yards[h.posInHalf]=+v; save(); render(); }
+/* パット */
+function setPuttNum(v){ OWN().putt.num=+v; puttSyncNum(OWN().putt); save(); render(); }
+function toggleOK(){ OWN().putt.okOn=!OWN().putt.okOn; save(); render(); }
+function setPd(i,field,v){ const d=OWN().putt.details[i]; d[field]=(d[field]===v?null:v); save(); render(); }
+function setPdn(i,field,val){ OWN().putt.details[i][field]=(val===''?null:+val); save(); render(); }
+function togglePd(i,t){ const a=OWN().putt.details[i].tags; const j=a.indexOf(t); if(j>=0)a.splice(j,1); else a.push(t); save(); render(); }
+function addPuttTag(i){ const el=$('putttag_'+i); const v=(el&&el.value||'').trim(); if(!v)return;
+  const s=DB.settings(); if(!s.tags.putt.includes(v)){ s.tags.putt.push(v); DB.saveSettings(s); }
+  const a=OWN().putt.details[i].tags; if(!a.includes(v))a.push(v); save(); render(); }
 
-/* ============ ホール入力 ============ */
-function openHole(i){ S.holeIdx=i; const r=S.round, lv=r.logLevel, h=r.holes[i];
-  S.stage= lv===1?'putt': lv===2?'approach':'toGreen';
-  let ry=100;
-  if(S.stage==='toGreen'){ const st=DB.settings();
-    ry = h.owner.shots.length ? h.owner.shots[h.owner.shots.length-1].remainYard
-        : (h.teeDist!=null ? h.teeDist : (st.teeDefault[h.par]||350)); }
-  else if(S.stage==='approach'){ const ap=h.owner.shots.filter(s=>s.phase==='approach'); ry = ap.length?ap[ap.length-1].remainYard:100; }
-  S.draft={remainYard:ry,steps:3,touch:0,tendencies:[],tags:[],tagsPre:[],tagsPost:[]}; go('hole'); }
-function stageAvail(){ const lv=S.round.logLevel; return {toGreen:lv===3, approach:lv>=2, putt:true}; }
-function renderHole(){
-  const h=curHole(), lv=S.round.logLevel, av=stageAvail(), units=DB.settings().units;
-  const hf=(h.half!=null?h.half:(S.holeIdx<9?0:1));
-  const halfName=(S.round.course.halves[hf]&&S.round.course.halves[hf].name)||(hf===0?'OUT':'IN');
-  const seg=(cls,opts,key,fn)=>`<div class="seg ${cls}">${opts.map(o=>`<div class="opt ${S.draft[key]===o.v?'on':''}"
-     onclick="${fn}(${typeof o.v==='number'?o.v:`'${o.v}'`})">${o.l}</div>`).join('')}</div>`;
-  const segMulti=(opts,arr,fn)=>`<div class="seg" style="flex-wrap:wrap">${opts.map(o=>`<div class="opt ${(arr||[]).includes(o.v)?'on':''}" onclick="${fn}('${o.v}')">${o.l}</div>`).join('')}</div>`;
-  const distSel=(stage,key)=>{ const u=units[stage], cur=S.draft[key];
-    const vals=distValues(stage,u); if(cur!=null&&!vals.includes(cur)){ vals.push(cur); vals.sort((x,y)=>x-y); }
-    const opts=vals.map(v=>`<option value="${v}" ${v===cur?'selected':''}>${v}</option>`).join('');
-    return `<select class="sel" onchange="set_${key}(this.value===''?null:+this.value)">${opts}</select><span class="unit">${u}</span>`; };
-  let body='';
-  if(S.stage==='toGreen'||S.stage==='approach'){
-    const sk=S.stage, ttl=sk==='toGreen'?'道中':'アプローチ';
-    const rset=sk==='approach'?RESULT_AP:RESULT_TG;
-    const clubs=DB.settings().clubs;
-    body=`<h2>${ttl} ・ 残り ${S.draft.remainYard}${units[sk]}</h2>
-      <div class="card">
-        <div class="sm muted">番手（必須）</div>
-        <div class="clubrow" style="margin-bottom:12px">${clubs.map(c=>`<div class="opt ${S.draft.club===c.name?'on':''}" onclick="pickClub('${c.name}')">${c.name}</div>`).join('')}</div>
-        <div class="row" style="justify-content:center;margin-bottom:10px"><span class="muted">残り距離</span>${distSel(sk,'remainYard')}</div>
-        <div class="sm muted">① 結果（任意）</div>${seg('result',rset,'result','pick3')}
-        <div class="sm muted" style="margin-top:10px">② 意図（任意）</div>${seg('',INTENT,'intent','pickToggle')}
-        <div class="sm muted" style="margin-top:14px">③ タグ・実行前（ライ／状況／狙い）</div>${tagFieldG(sk==='approach'?'approach':'through','pre')}
-        <div class="sm muted" style="margin-top:14px">④ タグ・実行〜結果（打った後の事象）</div>${tagFieldG(sk==='approach'?'approach':'through','post')}
-        <button class="btn primary wide" style="margin-top:12px" onclick="addShot()">この打を記録</button>
-      </div>`;
-  } else {
-    const d=S.draft; let sc='';
-    if(d.effSteps!=null&&d.steps!=null){ const diff=d.effSteps-d.steps; sc=diff===0?'±0 フラット':(diff>0?`+${diff}（上り）`:`${diff}（下り）`); }
-    body=`<button class="btn wide" style="margin-bottom:12px" onclick="addPuttOK()">OK（打たず・1打で上がり）</button>
-      <div class="card">
-        <div class="row" style="justify-content:center;margin-bottom:8px"><span class="muted">距離</span>${distSel('putt','steps')}</div>
-        <div class="row" style="justify-content:center"><span class="muted">傾斜込み距離（任意）</span>
-          <select class="sel" onchange="set_effSteps(this.value===''?null:+this.value)"><option value="" ${d.effSteps==null?'selected':''}>−</option>${[...Array(30)].map((_,k)=>`<option value="${k+1}" ${d.effSteps===k+1?'selected':''}>${k+1}</option>`).join('')}</select><span class="unit">${units.putt}</span></div>
-        ${sc?`<div class="sm center" style="color:var(--amber);margin:6px 0">${sc}</div>`:''}
-        <div class="sm muted" style="margin-top:8px">読み傾斜（縦）</div>${seg('',SLOPE_V,'slopeV','pickV')}
-        <div class="sm muted" style="margin-top:8px">読み傾斜（横）</div>${seg('',SLOPE_H,'slopeH','pickH')}
-        <div style="border-top:1px solid var(--border);margin:12px 0"></div>
-        <div class="sm muted">結果</div>${seg('result',PRESULT,'presult','pickPR')}
-        <div class="sm muted" style="margin-top:8px">実行</div>${seg('exec',EXEC,'execution','pick2')}
-        <div class="sm muted" style="margin-top:8px">タッチ（0=ジャスト ＋オーバー −ショート）</div>
-        <div class="row" style="justify-content:center"><select class="sel" onchange="set_touch(+this.value)">${[-5,-4,-3,-2,-1,0,1,2,3,4,5].map(v=>`<option value="${v}" ${(d.touch||0)===v?'selected':''}>${v>0?'+':''}${v}</option>`).join('')}</select><span class="unit">${units.putt}</span></div>
-        <div class="sm muted" style="margin-top:8px">タグ（エイミング・傾向など・複数可）</div>${tagField('putt')}
-        <button class="btn primary wide" style="margin-top:12px" onclick="addPutt()">このパットを記録</button>
-      </div>`;
-  }
-  // 記録済みリスト（並べ替え可）
-  const N=h.owner.shots.length;
-  const shotLine=(s,i)=>{
-    return `<div class="listitem"><b>${s.club||''}</b> <span class="sm muted">${s.remainYard!=null?s.remainYard+(s.unit||'y'):''}${s.result!=null?' ／結果'+labResult(s.result,s.phase):''}${s.intent?' '+labIntent(s.intent):''}</span>
-      ${tagChips(shotTags(s))}
-      <span class="mv" style="${i===0?'opacity:.25':''}" onclick="moveShot(${s.seq},-1)">▲</span>
-      <span class="mv" style="${i===N-1?'opacity:.25':''}" onclick="moveShot(${s.seq},1)">▼</span>
-      <span class="x" onclick="delShot(${s.seq})">✕</span></div>`; };
-  const puttLine=(p)=>{ if(p.ok) return `<div class="listitem">🥅 <b>OK</b> <span class="sm muted">打たず・1打</span><span class="x" onclick="delPutt(${p.seq})">✕</span></div>`;
-    const t=p.touch?((p.touch>0?'+':'')+p.touch):'0';
-    return `<div class="listitem">🥅 <b>${p.steps}${p.unit||units.putt}</b> <span class="sm muted">${labPR(p.result)}${p.slopeV?' /'+labSV(p.slopeV):''}${p.slopeH?labSH(p.slopeH):''} 実行${labExec(p.exec)} タッチ${t}</span>
-      ${tagChips(puttTags(p))}<span class="x" onclick="delPutt(${p.seq})">✕</span></div>`; };
-  const list=`
-    ${h.owner.shots.length?`<h2>記録（ショット）</h2><div class="card">${h.owner.shots.map(shotLine).join('')}</div>`:''}
-    ${h.owner.putts.length?`<h2>記録（パット）</h2><div class="card">${h.owner.putts.map(puttLine).join('')}</div>`:''}`;
-  // スコア入力（全員・横タップ）
-  const det=h.owner.shots.length+h.owner.putts.length;
-  const players=S.round.players.filter(p=>p.owner||p.name);
-  const strip=(pid,suggest)=>{ const cur=h.scores[pid]??null;
-    return `<div class="numstrip" data-pid="${pid}" onscroll="saveStrip('${pid}',this.scrollLeft)">${[...Array(15)].map((_,k)=>{const n=k+1;
-      return `<div class="num ${cur===n?'on':(cur==null&&suggest===n?'sug':'')}" onclick="setPscore('${pid}',${n})">${n}</div>`;}).join('')}</div>`; };
-  const puttStrip=()=>{ const key=owner().id+':putt'; const cur=h.owner.puttNo??null; const sug=h.owner.putts.length;
-    return `<div class="numstrip" data-pid="${key}" onscroll="saveStrip('${key}',this.scrollLeft)">${[...Array(10)].map((_,k)=>
-      `<div class="num ${cur===k?'on':(cur==null&&sug===k?'sug':'')}" onclick="setPutts(${k})">${k}</div>`).join('')}</div>`; };
-  const scoreBox=`<h2>スコア</h2><div class="card">
-    ${players.map(p=>`<div style="min-width:0;margin-bottom:8px">
-      <div class="row"><span>${esc(p.name)}${p.owner?' ★':''}</span>${p.owner&&det?`<span class="sm muted" style="margin-left:8px">詳細計 ${det}</span>`:''}</div>
-      ${strip(p.id,p.owner?det:0)}
-      ${p.owner?`<div class="sm muted" style="margin-top:4px">うちパット数</div>${puttStrip()}`:''}</div>`).join('')}
-  </div>`;
-  const memoBox=`<h2>ホールメモ（テキスト／音声）</h2><div class="card">
-    <textarea id="holenote" rows="2" placeholder="例：1打目ドライバー右ラフ、2打目8Iでオン、2パット…（キーボードのマイクで音声入力できます）" oninput="setNote(this.value)">${esc(h.note||'')}</textarea>
-    <div class="sm muted" style="margin-top:6px">このホールを一言／音声でメモ。AI（Gemini）で自動分析・項目補完は今後追加予定です。</div></div>`;
-  const tab=(k,l)=>`<div class="t ${S.stage===k?'on':''} ${!av[k]?'disabled':''} ${stageDone(k)?'done':''}" onclick="setStage('${k}')">${l}</div>`;
-  $('main').innerHTML=`
-    <div class="holebar">
-      <button class="btn sm ghost" onclick="navHole(-1)" ${S.holeIdx===0?'disabled':''}>◀</button>
-      <div class="center" style="flex:1"><b>${esc(halfName)} No.${h.holeNo}</b> <span class="muted">Par ${h.par}</span></div>
-      <button class="btn sm ghost" onclick="navHole(1)" ${S.holeIdx===17?'disabled':''}>▶</button></div>
-    ${scoreBox}
-    ${memoBox}
-    <div class="tabs">${av.toGreen?tab('toGreen','道中'):''}${av.approach?tab('approach','アプローチ'):''}${tab('putt','パット')}</div>
-    ${body}${list}`;
-  $('footer').innerHTML=`<div class="inner row"><button class="btn ghost sm" onclick="toCard()">スコアカード</button>
-    <button class="btn ghost sm" onclick="editSettings()">⚙</button>
-    <div class="sp"></div><button class="btn primary" onclick="navHole(1)" ${S.holeIdx===17?'disabled':''}>ホール完了 ▶</button></div>`;
-  $('hbtn').style.display=''; $('hsub').textContent=courseLabel(S.round);
-  positionStrips();
+function tagGroup(i,kind,selected){ const master=DB.settings().tags[S.stage][kind];
+  const chips=master.map(t=>`<div class="tag ${kind} ${selected.includes(t)?'on':''}" onclick="toggleTag(${i},'${kind}','${esc(t)}')">${esc(t)}</div>`).join('');
+  return `<div class="tags">${chips}</div><div class="addtag"><input type="text" id="shottag_${kind}_${i}" placeholder="＋タグ追加" onkeydown="if(event.key==='Enter'){event.preventDefault();addTagInput(${i},'${kind}')}"><button onclick="addTagInput(${i},'${kind}')">追加</button></div>`; }
+function stageContent(){
+  if(S.stage==='putt') return puttContent();
+  const stg=stgObj(), arr=stg.shots, isT=S.stage==='through', rOpts=isT?CRESULT:ARESULT;
+  const clubs=DB.settings().clubs, uy=DB.settings().units.toGreen;
+  const strip=(i,s)=>`<div class="cstrip" data-idx="${i}">${clubs.map(c=>`<div class="cbtn ${s.club===c.name?'on':''}" data-club="${esc(c.name)}" onclick="pickClub(${i},'${esc(c.name)}')">${esc(c.name)}</div>`).join('')}</div>`;
+  const penSel=(i,s)=>`<span class="pnlab">PN</span><select class="pensel ${s.pen?'act':''}" onchange="setPen(${i},this.value)"><option value="0" ${s.pen===0?'selected':''}>-</option><option value="1" ${s.pen===1?'selected':''}>+1</option><option value="2" ${s.pen===2?'selected':''}>+2</option></select>`;
+  const ydSel=(i,s)=>`<select class="ydbox" onchange="setShotYard(${i},this.value)">${shotYardOpts(s.yard)}</select>`;
+  const row=(s,i)=>`<div class="srow"><div class="srowhead"><div class="seq">${i+1}</div>
+      <div class="cname ${s.club?'':'non'}">${s.club?esc(s.club):'クラブ'}</div>${penSel(i,s)}${ydSel(i,s)}
+      <button class="delx" onclick="delShot(${i})">✕</button></div>${strip(i,s)}</div>`;
+  const detail=(s,i)=>`<div class="sdetail"><div class="sdhead">${i+1}打目${s.club?' ・ '+esc(s.club):''}${s.yard!=null?' ・ '+s.yard+uy:''}</div>
+      <div class="taglab">事前タグ</div>${tagGroup(i,'pre',s.pre)}
+      <div class="taglab">事後タグ</div>${tagGroup(i,'post',s.post)}
+      <div class="taglab">メモ</div><textarea placeholder="メモ" oninput="setNote(${i},this.value)">${esc(s.note)}</textarea></div>`;
+  const throughResult = isT?`<h2>ショットの結果</h2><div class="card"><div class="reseg">
+      <div class="ro ${stg.res==='on'?'on':''}" onclick="setRes('on')">ON</div>
+      <div class="ro ${stg.res==='approach'?'on':''}" onclick="setRes('approach')">アプローチへ</div></div></div>`:'';
+  return `<h2>ショット</h2>${arr.map(row).join('')}
+    <div class="addrow"><button class="add" onclick="addShot()">＋ 1打追加</button><button class="rem" onclick="remLast()">△ 1打削除</button></div>
+    ${throughResult}
+    <h2>評価</h2><div class="card">
+      <div class="taglab" style="margin-top:0;">結果</div><div class="seg">${rOpts.map(([v,l])=>`<div class="segopt ${stg.eval.result===v?'on':''}" onclick="setEval('result','${v}')">${l}</div>`).join('')}</div>
+      <div class="taglab">意図</div><div class="seg">${CINTENT.map(([v,l])=>`<div class="segopt ${stg.eval.intent===v?'on':''}" onclick="setEval('intent','${v}')">${l}</div>`).join('')}</div></div>
+    <h2>1打ごとの詳細</h2>${arr.map(detail).join('')}`;
 }
-function saveStrip(pid,x){ S.stripScroll[pid]=x; }
-function positionStrips(){
-  document.querySelectorAll('.numstrip').forEach(el=>{ const pid=el.dataset.pid;
-    if(S.stripScroll[pid]!=null){ el.scrollLeft=S.stripScroll[pid]; }
-    else { const sel=el.querySelector('.on')||el.querySelector('.sug');
-      if(sel){ el.scrollLeft=sel.offsetLeft-el.clientWidth/2+sel.offsetWidth/2; } } });
-  document.querySelectorAll('.clubrow').forEach(el=>{ const sel=el.querySelector('.opt.on');
-    if(sel){ el.scrollLeft=sel.offsetLeft-el.clientWidth/2+sel.offsetWidth/2; } });
+function puttContent(){
+  const p=OWN().putt; puttSyncNum(p); const okCount=puttOK(p), total=p.num+okCount, u=DB.settings().units.putt;
+  let numOpts=''; for(let n=0;n<=9;n++)numOpts+=`<option value="${n}" ${p.num===n?'selected':''}>${n}</option>`;
+  const seg=(i,field,list)=>`<div class="seg">${list.map(l=>`<div class="segopt ${p.details[i][field]===l?'on':''}" onclick="setPd(${i},'${field}','${l}')">${l}</div>`).join('')}</div>`;
+  const tags=i=>DB.settings().tags.putt.map(t=>`<div class="tag putt ${p.details[i].tags.includes(t)?'on':''}" onclick="togglePd(${i},'${esc(t)}')">${esc(t)}</div>`).join('');
+  const detail=(d,i)=>`<div class="sdetail"><div class="sdhead">${i+1}パット目</div>
+    <div class="drow"><div class="dcol"><div class="dt">距離</div><select onchange="setPdn(${i},'dist',this.value)">${stepOpts(d.dist)}</select></div>
+      <div class="dcol"><div class="dt">傾斜込み</div><select onchange="setPdn(${i},'effDist',this.value)">${stepOpts(d.effDist)}</select></div>
+      <div class="dcol"><div class="dt">タッチ</div><select onchange="setPdn(${i},'touch',this.value)">${touchOpts(d.touch)}</select></div></div>
+    <div class="taglab">読み傾斜（縦）</div>${seg(i,'slopeV',SLOPEV)}
+    <div class="taglab">読み傾斜（横）</div>${seg(i,'slopeH',SLOPEH)}
+    <div class="taglab">結果</div>${seg(i,'result',PRESULT)}
+    <div class="taglab">実行</div>${seg(i,'exec',EXECV)}
+    <div class="taglab">タグ（単位:${u}）</div><div class="tags">${tags(i)}</div>
+    <div class="addtag"><input type="text" id="putttag_${i}" placeholder="＋タグ追加" onkeydown="if(event.key==='Enter'){event.preventDefault();addPuttTag(${i})}"><button onclick="addPuttTag(${i})">追加</button></div></div>`;
+  return `<button class="okbtn ${p.okOn?'on':''}" onclick="toggleOK()">OK（寄せワン）</button>
+    <div class="card" style="margin-top:10px;"><div class="frow" style="margin-top:0;">
+      <span class="pnlab" style="font-size:13px;">パット 計 ${total} ＝</span><select onchange="setPuttNum(this.value)">${numOpts}</select>
+      <span class="pnlab" style="font-size:13px;">＋ OK</span><b style="font-size:18px;">${okCount}</b></div></div>
+    ${p.details.map(detail).join('')}`;
 }
-function stageDone(k){ const h=curHole();
-  if(k==='putt') return h.owner.putts.length>0;
-  if(k==='approach') return h.owner.shots.some(s=>s.phase==='approach');
-  return h.owner.shots.some(s=>s.phase==='toGreen'); }
-function setStage(k){ if(!stageAvail()[k])return; S.stage=k; S.draft={remainYard:S.draft.remainYard||100,steps:S.draft.steps||3,touch:0,tendencies:[],tags:[],tagsPre:[],tagsPost:[]}; render(); }
-function navHole(d){ save(); const n=S.holeIdx+d; if(n<0||n>17)return; openHole(n); }
-
-/* draft操作 */
-function pick(k,v){ S.draft[k]=v; render(); }
-function pickClub(name){ S.draft.club=name;
-  const h=curHole();
-  if(h.owner.shots.length>0){ const c=DB.settings().clubs.find(x=>x.name===name); if(c&&c.dist) S.draft.remainYard=c.dist; }
-  render(); }
-function freshDraft(y){ return {remainYard:y,steps:1,touch:0,tendencies:[],tags:[],tagsPre:[],tagsPost:[]}; }
-function pick2(v){ S.draft.execution=v; render(); }
-function pick3(v){ S.draft.result=v; render(); }
-function pickToggle(v){ S.draft.intent=S.draft.intent===v?null:v; render(); }
-function pickV(v){ S.draft.slopeV=S.draft.slopeV===v?null:v; render(); }
-function pickH(v){ S.draft.slopeH=S.draft.slopeH===v?null:v; render(); }
-function pickPR(v){ S.draft.presult=v; render(); }
-function pickAim(v){ S.draft.aim=S.draft.aim===v?null:v; render(); }
-function toggleTend(v){ const a=S.draft.tendencies||(S.draft.tendencies=[]); const i=a.indexOf(v); if(i<0)a.push(v); else a.splice(i,1); render(); }
-function set_remainYard(v){ S.draft.remainYard=v; render(); }
-function set_steps(v){ S.draft.steps=v; render(); }
-function set_effSteps(v){ S.draft.effSteps=v; render(); }
-function set_touch(v){ S.draft.touch=v; render(); }
-function setPscore(pid,v){ const h=curHole(); if(v==null) delete h.scores[pid]; else h.scores[pid]=v; save(); render(); }
-function setPutts(v){ curHole().owner.puttNo=v; save(); render(); }
-function setNote(v){ curHole().note=v; save(); }
-
-/* ============ タグ ============ */
-// 入力画面のタグ欄（選択式＋新規追加）。keyは 'through'|'approach'|'putt'
-function tagField(key){
-  const master=DB.settings().tags[key]||[]; const sel=S.draft.tags||(S.draft.tags=[]);
-  const chips=master.map((t,i)=>`<div class="opt ${sel.includes(t)?'on':''}" onclick="toggleTag('${key}',${i})">${esc(t)}</div>`).join('');
-  return `<div class="seg" style="flex-wrap:wrap">${chips||'<span class="sm muted" style="padding:8px 0">タグ未登録。下の欄から追加できます。</span>'}</div>
-    <div class="row" style="margin-top:8px">
-      <input type="text" id="newtag_${key}" placeholder="新しいタグを入力" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTag('${key}')}">
-      <button class="btn sm" onclick="addNewTag('${key}')">追加</button></div>`;
+function renderDetail(){
+  const h=H(), av=availStages(), own=h.owner;
+  const cnt={through:throughCount(h),approach:approachCount(h),putt:puttCount(h)};
+  /* 整合性 */
+  let appSt='', puttSt='';
+  if(own){ const res=own.through.res, aN=cnt.approach;
+    if(res==='on') appSt=aN>=1?'warn':'dim'; else if(res==='approach') appSt=aN===0?'warn':'';
+    const ares=own.approach.eval.result, pN=cnt.putt;
+    if(ares==='in') puttSt=pN>=1?'warn':'dim'; else if(ares==='ok') puttSt=(pN===1?'dim':'warn'); }
+  const st={approach:appSt,putt:puttSt};
+  const tab=([k,l])=> av[k]?`<div class="stab ${S.stage===k?'on':''}" onclick="setStage('${k}')">${l}<span class="cbadge ${st[k]||''}">${cnt[k]}${st[k]==='warn'?'！':''}</span></div>`:'';
+  const hn=(S.round.course.halves[h.half]&&S.round.course.halves[h.half].name)||(h.half===0?'OUT':'IN');
+  $('app').innerHTML=`
+    <div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">自動保存中</div></div>
+    <div class="titlebar"><b style="font-size:18px;">${esc(hn)} No.${h.holeNo}</b><span class="muted">Par ${h.par}</span>
+      <select class="ydsel" onchange="setYardHole(this.value)">${yardOpts(h.yard)}</select></div>
+    <div class="stagetabs">${STAGES.map(tab).join('')}</div>
+    ${stageContent()}`;
+  $('topsub').textContent='ホール詳細'; $('topbtns').innerHTML='';
+  const sc=DB.settings().startClubs;
+  document.querySelectorAll('.cstrip').forEach(el=>{ const on=el.querySelector('.cbtn.on');
+    if(on){ el.scrollLeft = on.offsetLeft - el.clientWidth/2 + on.offsetWidth/2; return; }
+    const idx=+el.dataset.idx;
+    const startClub = S.stage==='approach'?sc.approach:(idx===0?sc.first:sc.second);
+    const se=el.querySelector('[data-club="'+startClub+'"]'); if(se) el.scrollLeft = se.offsetLeft - 4; });
 }
-function toggleTag(key,i){ const master=DB.settings().tags[key]||[]; const t=master[i]; if(t==null)return;
-  const a=S.draft.tags||(S.draft.tags=[]); const j=a.indexOf(t); if(j<0)a.push(t); else a.splice(j,1); render(); }
-function addNewTag(key){ const el=document.getElementById('newtag_'+key); const v=(el&&el.value||'').trim(); if(!v)return;
-  const s=DB.settings(); s.tags[key]=s.tags[key]||[]; if(!s.tags[key].includes(v)) s.tags[key].push(v); DB.saveSettings(s);
-  const a=S.draft.tags||(S.draft.tags=[]); if(!a.includes(v)) a.push(v); render(); }
-function tagChips(tags){ return (tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join(''); }
-// 道中/アプローチの2グループ用タグ欄。group='pre'|'post'
-function tagFieldG(key,group){
-  const master=((DB.settings().tags[key]||{})[group])||[];
-  const dk=group==='pre'?'tagsPre':'tagsPost'; const sel=S.draft[dk]||(S.draft[dk]=[]);
-  const chips=master.map((t,i)=>`<div class="opt ${sel.includes(t)?'on':''}" onclick="toggleTagG('${key}','${group}',${i})">${esc(t)}</div>`).join('');
-  const id='newtag_'+key+'_'+group;
-  return `<div class="seg" style="flex-wrap:wrap">${chips||'<span class="sm muted" style="padding:8px 0">タグ未登録。下の欄から追加できます。</span>'}</div>
-    <div class="row" style="margin-top:8px">
-      <input type="text" id="${id}" placeholder="新しいタグを入力" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTagG('${key}','${group}')}">
-      <button class="btn sm" onclick="addNewTagG('${key}','${group}')">追加</button></div>`;
-}
-function toggleTagG(key,group,i){ const master=((DB.settings().tags[key]||{})[group])||[]; const t=master[i]; if(t==null)return;
-  const dk=group==='pre'?'tagsPre':'tagsPost'; const a=S.draft[dk]||(S.draft[dk]=[]); const j=a.indexOf(t); if(j<0)a.push(t); else a.splice(j,1); render(); }
-function addNewTagG(key,group){ const el=document.getElementById('newtag_'+key+'_'+group); const v=(el&&el.value||'').trim(); if(!v)return;
-  const s=DB.settings(); s.tags[key]=s.tags[key]||{pre:[],post:[]}; s.tags[key][group]=s.tags[key][group]||[];
-  if(!s.tags[key][group].includes(v)) s.tags[key][group].push(v); DB.saveSettings(s);
-  const dk=group==='pre'?'tagsPre':'tagsPost'; const a=S.draft[dk]||(S.draft[dk]=[]); if(!a.includes(v)) a.push(v); render(); }
-// ショットの表示タグ：実行前＋実行〜結果＋旧tags
-function shotTags(s){ return [...(s.tagsPre||[]), ...(s.tagsPost||[]), ...(s.tags||[])]; }
-// パットの表示タグ：新tags＋旧データ（傾向・エイミング）も拾う
-function puttTags(p){ return [...(p.tags||[]), ...((p.tendencies||[]).map(labTend)), ...(p.aim?[labAim(p.aim)]:[])]; }
-// アプリ設定のタグ管理ブロック
-function tagAdminChips(arr,onclickFn){ return `<div class="seg" style="flex-wrap:wrap">${arr.length?arr.map((t,i)=>`<div class="opt" onclick="${onclickFn}(${i})">${esc(t)} ✕</div>`).join(''):'<span class="sm muted" style="padding:8px 0">なし</span>'}</div>`; }
-function tagAdminBlock(label,key){
-  if(key==='putt'){ const arr=(appset.tags&&appset.tags.putt)||[];
-    return `<div><div class="sm muted" style="margin:4px 0 6px">${label}</div>
-      ${tagAdminChips(arr,`delTagAdminPutt`)}
-      <div class="row" style="margin-top:6px"><button class="btn sm ghost" onclick="resetPuttTags()">初期キーワードに戻す</button></div></div>`; }
-  const g=(appset.tags&&appset.tags[key])||{pre:[],post:[]};
-  return `<div><div class="sm muted" style="margin:4px 0 6px">${label}</div>
-    <div class="sm muted" style="margin:2px 0">・実行前</div>${tagAdminChips(g.pre||[],`delTagAdminG_${key}_pre`)}
-    <div class="sm muted" style="margin:6px 0 2px">・実行〜結果</div>${tagAdminChips(g.post||[],`delTagAdminG_${key}_post`)}</div>`; }
-function delTagAdminPutt(i){ appset.tags.putt.splice(i,1); render(); }
-function delTagAdminG(key,group,i){ appset.tags[key][group].splice(i,1); render(); }
-// tagAdminChips用の部分適用（onclick文字列から呼べるよう固定名で用意）
-function delTagAdminG_through_pre(i){ delTagAdminG('through','pre',i); }
-function delTagAdminG_through_post(i){ delTagAdminG('through','post',i); }
-function delTagAdminG_approach_pre(i){ delTagAdminG('approach','pre',i); }
-function delTagAdminG_approach_post(i){ delTagAdminG('approach','post',i); }
-function resetPuttTags(){ appset.tags.putt=defPuttTags(); render(); }
-
-function addShot(){ const d=S.draft;
-  if(!d.club){alert('番手を選んでください');return;}
-  const u=DB.settings().units; const y=d.remainYard; const phase=S.stage;
-  const h=curHole(); h.owner.shots.push({seq:seq(h),phase,club:d.club,remainYard:y,unit:phase==='approach'?u.approach:u.toGreen,
-    result:d.result??undefined,intent:d.intent||undefined,
-    tagsPre:(d.tagsPre&&d.tagsPre.length)?d.tagsPre.slice():undefined,
-    tagsPost:(d.tagsPost&&d.tagsPost.length)?d.tagsPost.slice():undefined});
-  save();
-  if(phase==='approach'&&d.result===4){ S.draft=freshDraft(y); toCard(); return; }   // in/OK→上がり（パット加算なし）
-  S.draft=freshDraft(y); if(S.stage==='toGreen'&&y<=100)S.stage='approach'; render(); }
-function addOKPutt(){ const h=curHole(); const u=DB.settings().units;
-  h.owner.putts.push({seq:h.owner.putts.length+1,ok:true,steps:1,unit:u.putt,result:'in'}); save(); }
-function addPuttOK(){ addOKPutt(); toCard(); }
-function addPutt(){ const d=S.draft;
-  if(d.presult==null){alert('結果を選んでください');return;}
-  const u=DB.settings().units; const h=curHole();
-  h.owner.putts.push({seq:h.owner.putts.length+1,ok:false,steps:d.steps,unit:u.putt,
-    effSteps:d.effSteps??undefined,slopeV:d.slopeV||undefined,slopeH:d.slopeH||undefined,
-    result:d.presult,exec:d.execution??undefined,touch:d.touch||0,
-    tags:(d.tags&&d.tags.length)?d.tags.slice():undefined});
-  save();
-  if(d.presult==='in'){ S.draft=freshDraft(d.remainYard); toCard(); return; }
-  if(d.presult==='ok'){ addOKPutt(); S.draft=freshDraft(d.remainYard); toCard(); return; }  // OK→次の1打にパットOK→上がり
-  S.draft=freshDraft(d.remainYard); render(); }
-function seq(h){ return h.owner.shots.length+1; }
-function moveShot(s,dir){ const h=curHole(); const a=h.owner.shots; const i=a.findIndex(x=>x.seq===s); const j=i+dir;
-  if(j<0||j>=a.length)return; const t=a[i]; a[i]=a[j]; a[j]=t; a.forEach((x,k)=>x.seq=k+1); save(); render(); }
-function delShot(s){ const h=curHole(); h.owner.shots=h.owner.shots.filter(x=>x.seq!==s).map((x,i)=>({...x,seq:i+1})); save(); render(); }
-function delPutt(s){ const h=curHole(); h.owner.putts=h.owner.putts.filter(x=>x.seq!==s).map((x,i)=>({...x,seq:i+1})); save(); render(); }
-
-/* ラベル */
-function labOf(arr,v){return (arr.find(x=>x.v===v)||{}).l||'';}
-function labExec(v){return labOf(EXEC,v);}
-function labResult(v,phase){return labOf(phase==='approach'?RESULT_AP:RESULT_TG,v);}
-function labIntent(v){return labOf(INTENT,v);}
-function labPR(v){return labOf(PRESULT,v);}
-function labAim(v){return labOf(AIM,v);}
-function labSV(v){return labOf(SLOPE_V,v);}
-function labSH(v){return labOf(SLOPE_H,v);}
-function labTend(v){return labOf(TENDENCY,v);}
-
-/* ユーティリティ */
-function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function sum(a){ return a.reduce((x,y)=>x+(+y||0),0); }
-function selNum(min,max,step,val,fn,ph){
-  let o = ph!=null?`<option value="" ${val==null?'selected':''}>${ph}</option>`:'';
-  for(let v=min;v<=max;v+=step){ o+=`<option value="${v}" ${v===val?'selected':''}>${v}</option>`; }
-  return `<select class="sel" onchange="${fn}(this.value===''?null:+this.value)">${o}</select>`;
-}
+function backToCard(){ S.view='card'; render(); }
 
 /* ============ ルート ============ */
+let _lastView=null, _lastHole=null;
 function render(){
-  if(S.screen==='home') renderHome();
-  else if(S.screen==='appset') renderAppSettings();
-  else if(S.screen==='setup') renderSetup();
-  else if(S.screen==='card') renderCard();
-  else if(S.screen==='shotlist') renderShotList();
-  else if(S.screen==='puttlist') renderPuttList();
-  else if(S.screen==='hole') renderHole();
-  const hd=document.querySelector('header'); if(hd) document.documentElement.style.setProperty('--hh', hd.offsetHeight+'px');
+  if(S.view==='home') renderHome();
+  else if(S.view==='setup') renderSetup();
+  else if(S.view==='appset') renderAppSettings();
+  else if(S.view==='detail') renderDetail();
+  else renderCard();
+  if(S.view!==_lastView || (S.view==='detail'&&S.detailHole!==_lastHole)) window.scrollTo(0,0);
+  _lastView=S.view; _lastHole=S.detailHole;
 }
 render();
 
-/* ============ PWA登録（HTTPS配信 or localhost のみ。file://・LAN httpでは静かにスキップ） ============ */
 if('serviceWorker' in navigator &&
    (location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
   window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
