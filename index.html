@@ -517,6 +517,7 @@ function addTagInput(i,kind){ const el=$('shottag_'+kind+'_'+i); const v=(el&&el
   const s=DB.settings(); const master=s.tags[S.stage][kind]; if(!master.includes(v)){ master.push(v); DB.saveSettings(s); }
   const arr=shots()[i][kind]; if(!arr.includes(v))arr.push(v); save(); render(); }
 function setNote(i,v){ shots()[i].note=v; save(); }
+function setHoleNote(v){ H().note=v; save(); }
 function setRes(r){ const t=OWN().through; t.res=(t.res===r?null:r); save(); render(); }
 function setRemain(v){ OWN().through.remain=+v; save(); }
 function setEval(kind,v){ const e=stgObj().eval; e[kind]=(e[kind]===v?null:v);
@@ -533,7 +534,8 @@ function addPuttTag(i){ const el=$('putttag_'+i); const v=(el&&el.value||'').tri
   const a=OWN().putt.details[i].tags; if(!a.includes(v))a.push(v); save(); render(); }
 
 function tagGroup(i,kind,selected){ const master=DB.settings().tags[S.stage][kind];
-  const chips=master.map(t=>`<div class="tag ${kind} ${selected.includes(t)?'on':''}" onclick="toggleTag(${i},'${kind}','${esc(t)}')">${esc(t)}</div>`).join('');
+  const all=[...master, ...(selected||[]).filter(t=>!master.includes(t))];
+  const chips=all.map(t=>`<div class="tag ${kind} ${selected.includes(t)?'on':''}" onclick="toggleTag(${i},'${kind}','${esc(t)}')">${esc(t)}</div>`).join('');
   return `<div class="tags">${chips}</div><div class="addtag"><input type="text" id="shottag_${kind}_${i}" placeholder="＋タグ追加" onkeydown="if(event.key==='Enter'){event.preventDefault();addTagInput(${i},'${kind}')}"><button onclick="addTagInput(${i},'${kind}')">追加</button></div>`; }
 function stageContent(){
   if(S.stage==='putt') return puttContent();
@@ -564,7 +566,9 @@ function puttContent(){
   const p=OWN().putt; puttSyncNum(p); const okCount=puttOK(p), total=p.num+okCount, u=DB.settings().units.putt;
   let numOpts=''; for(let n=0;n<=9;n++)numOpts+=`<option value="${n}" ${p.num===n?'selected':''}>${n}</option>`;
   const seg=(i,field,list)=>`<div class="seg">${list.map(l=>`<div class="segopt ${p.details[i][field]===l?'on':''}" onclick="setPd(${i},'${field}','${l}')">${l}</div>`).join('')}</div>`;
-  const tags=i=>DB.settings().tags.putt.map(t=>`<div class="tag putt ${p.details[i].tags.includes(t)?'on':''}" onclick="togglePd(${i},'${esc(t)}')">${esc(t)}</div>`).join('');
+  const tags=i=>{ const master=DB.settings().tags.putt, sel=p.details[i].tags;
+    const all=[...master, ...sel.filter(t=>!master.includes(t))];
+    return all.map(t=>`<div class="tag putt ${sel.includes(t)?'on':''}" onclick="togglePd(${i},'${esc(t)}')">${esc(t)}</div>`).join(''); };
   const detail=(d,i)=>`<div class="sdetail"><div class="sdhead">${i+1}パット目</div>
     <div class="drow"><div class="dcol"><div class="dt">距離</div><select onchange="setPdn(${i},'dist',this.value)">${stepOpts(d.dist)}</select></div>
       <div class="dcol"><div class="dt">傾斜込み</div><select onchange="setPdn(${i},'effDist',this.value)">${stepOpts(d.effDist)}</select></div>
@@ -597,6 +601,8 @@ function renderDetail(){
     <div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">自動保存中</div></div>
     <div class="titlebar"><b style="font-size:18px;">${esc(hn)} No.${h.holeNo}</b><span class="muted">Par ${h.par}</span>
       <select class="ydsel" onchange="setYardHole(this.value)">${yardOpts(h.yard)}</select></div>
+    <div class="card" style="margin-bottom:10px"><div class="taglab" style="margin:0 0 6px">ホールメモ（テキスト／音声）</div>
+      <textarea placeholder="このホールのメモ" oninput="setHoleNote(this.value)">${esc(h.note)}</textarea></div>
     <div class="stagetabs">${STAGES.map(tab).join('')}</div>
     ${stageContent()}`;
   $('topsub').textContent='ホール詳細'; $('topbtns').innerHTML='';
