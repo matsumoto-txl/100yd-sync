@@ -222,8 +222,11 @@ function convOwner(oo){ if(!oo) return null;
   const PR={in:'カップイン',ok:'OK',miss:'外れ'}, EX={3:'ナイス',2:'まずまず',1:'ミス'};
   const through={shots:[],eval:{result:null,intent:null},res:null,remain:null};
   const approach={shots:[],eval:{result:null,intent:null}};
-  (oo.shots||[]).forEach(s=>{ const shot={club:s.club||null,pen:0,pre:(s.tagsPre||s.tags||[]).slice(),post:(s.tagsPost||[]).slice(),note:'',yard:(s.remainYard!=null?s.remainYard:null)};
-    if(s.phase==='approach') approach.shots.push(shot); else through.shots.push(shot); });
+  const RTG={4:'最高',3:'合格',2:'イマイチ',0:'NG'}, RAP={4:'in/OK',3:'合格',2:'イマイチ',1:'イマイチ',0:'NG'}, INl={safe:'安全',attack:'勝負',reckless:'無謀',normal:'普通'};
+  (oo.shots||[]).forEach(s=>{ const isA=s.phase==='approach';
+    const bits=[]; if(s.result!=null)bits.push('結果:'+((isA?RAP:RTG)[s.result]||s.result)); if(s.intent)bits.push('意図:'+(INl[s.intent]||s.intent));
+    const shot={club:s.club||null,pen:0,pre:(s.tagsPre||s.tags||[]).slice(),post:(s.tagsPost||[]).slice(),note:bits.join(' / '),yard:(s.remainYard!=null?s.remainYard:null)};
+    if(isA) approach.shots.push(shot); else through.shots.push(shot); });
   const stroked=(oo.putts||[]).filter(p=>!p.ok), okAny=(oo.putts||[]).some(p=>p.ok);
   const details=stroked.map(p=>({ dist:(p.steps!=null?p.steps:null), effDist:(p.effSteps!=null?p.effSteps:null),
     slopeV:SV[p.slopeV]||null, slopeH:SH[p.slopeH]||null, result:PR[p.result]||null, exec:EX[p.exec]||null, touch:(p.touch!=null?p.touch:0), tags:(p.tags||[]).slice() }));
@@ -238,9 +241,22 @@ function convertLegacy(o){ const st=DB.settings();
   return { roundId:o.roundId, date:o.date, logLevel:o.logLevel||3, course:{name:(o.course&&o.course.name)||'コース未設定',halves}, players:o.players||[{id:'p1',name:'自分',owner:true}], holes };
 }
 function importLegacy(){ const idx=legacyRounds(); let n=0;
-  idx.forEach(x=>{ try{ const old=legacyRound(x.id); if(!old)return; if(DB.round(x.id))return;
-    DB.saveRound(convertLegacy(old)); n++; }catch(e){} });
+  idx.forEach(x=>{ try{ const old=legacyRound(x.id); if(!old)return; if(DB.round(x.id)){ markMigrated(x.id); return; }
+    DB.saveRound(convertLegacy(old)); markMigrated(x.id); n++; }catch(e){} });
   alert(n+'件の以前の記録を読み込みました。（元データも残しています）'); render(); }
+/* 恒久対策：起動時に旧データを自動移行（アプリが空に見える事故を防ぐ／非破壊・一度だけ・削除済みは復活させない） */
+function migratedSet(){ try{ return new Set(JSON.parse(localStorage.getItem(NS+'migrated')||'[]')); }catch(e){ return new Set(); } }
+function markMigrated(id){ const s=migratedSet(); s.add(id); localStorage.setItem(NS+'migrated', JSON.stringify([...s])); }
+function autoMigrate(){ try{ const done=migratedSet();
+  legacyRounds().forEach(x=>{ if(done.has(x.id))return;
+    try{ const o=legacyRound(x.id); if(o && !DB.round(x.id)) DB.saveRound(convertLegacy(o)); }catch(e){} markMigrated(x.id); }); }catch(e){} }
+function reimportOverwrite(id){ if(!confirm('この記録を旧データから作り直します。v2で編集した内容は上書きされます。よろしいですか？'))return;
+  const o=legacyRound(id); if(!o){ alert('元データが見つかりません'); return; }
+  DB.saveRound(convertLegacy(o)); markMigrated(id); alert('旧データから作り直しました。'); goHome(); }
+function exportData(){ try{ const data={}; Object.keys(localStorage).filter(k=>k.startsWith('golf.')).forEach(k=>data[k]=localStorage.getItem(k));
+  const blob=new Blob([JSON.stringify({app:'100yd-sync',exported:todayStr(),data},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='100yd-sync-backup-'+todayStr()+'.json'; document.body.appendChild(a); a.click(); a.remove();
+}catch(e){ alert('書き出しに失敗しました'); } }
 /* 旧データ点検（元の記録を全項目表示・読取専用） */
 function openAuditList(){ S.view='auditlist'; render(); }
 function openAudit(id){ S.auditId=id; S.view='audit'; render(); }
@@ -271,7 +287,8 @@ function renderAudit(){ const o=legacyRound(S.auditId);
       ${putts.length?`<div class="sm" style="margin-top:6px"><b>パット</b><br>${putts.map(esc).join('<br>')}</div>`:''}</div>`; }).filter(Boolean).join('');
   $('app').innerHTML=`<div class="backbar"><button class="backbtn" onclick="openAuditList()">‹ 一覧</button></div>
     <h2>${esc((o.course&&o.course.name)||'')} ・ ${o.date}</h2>
-    <div class="card" style="border-color:var(--amber);background:rgba(240,180,41,.08);margin-bottom:10px"><div class="sm"><b>v2で未取り込みの項目</b>：ショットごとの「結果・意図」だけは、v2が局面ごとにまとめる方式のため取り込んでいません（下に元の値を表示）。他はv2にも入っています。</div></div>
+    <div class="card" style="border-color:var(--amber);background:rgba(240,180,41,.08);margin-bottom:10px"><div class="sm">ショットごとの「結果・意図」は、v2では各ショットの<b>メモ欄に文章化して取り込み</b>ます（例「結果:最高 / 意図:勝負」）。下記ボタンで反映できます。</div></div>
+    <button class="ghostbtn" style="border-color:var(--accent);color:var(--accent);margin-bottom:12px" onclick="reimportOverwrite('${S.auditId}')">この記録を旧データから作り直す（結果・意図をメモへ反映）</button>
     ${holes||'<p class="sm muted">記録のあるホールがありません。</p>'}`;
   $('topsub').textContent='旧データ点検'; $('topbtns').innerHTML=''; }
 
@@ -480,7 +497,9 @@ function renderAppSettings(){
       <button class="ghostbtn" onclick="addAsClub()">＋ 番手を追加</button>
       <div class="sm muted">飛距離は、ショットでクラブを選んだときの残りヤードの初期値になります。</div></div>
     <h2>タグ（並べ替え・追加・削除）</h2><div class="card" style="padding-top:2px">${TG.map(tagSection).join('')}</div>
-    <h2>デフォルト記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${a.logLevel===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>`;
+    <h2>デフォルト記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${a.logLevel===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>
+    <h2>バックアップ</h2><div class="card"><button class="ghostbtn" onclick="exportData()">📥 全データを書き出す（JSON）</button>
+      <div class="sm muted" style="margin-top:6px">端末内の全記録をファイルに保存します。機種変更・万一の備えに。</div></div>`;
   $('topsub').textContent='アプリ設定';
   $('topbtns').innerHTML=`<button class="iconbtn" onclick="goHome()">キャンセル</button> <button class="iconbtn primary" onclick="saveAppSettings()">保存</button>`;
   setupSortables();
@@ -662,6 +681,7 @@ function render(){
   if(S.view!==_lastView || (S.view==='detail'&&S.detailHole!==_lastHole)) window.scrollTo(0,0);
   _lastView=S.view; _lastHole=S.detailHole;
 }
+autoMigrate();
 render();
 
 if('serviceWorker' in navigator &&
