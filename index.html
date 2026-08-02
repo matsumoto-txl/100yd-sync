@@ -213,6 +213,35 @@ const DB={
     localStorage.setItem(NS+'rounds', JSON.stringify(DB.index().filter(x=>x.id!==id))); }
 };
 
+/* ============ 旧データ（golf.*）復元 ============ */
+function legacyRounds(){ try{ return JSON.parse(localStorage.getItem('golf.rounds')||'[]'); }catch(e){ return []; } }
+function legacyRound(id){ try{ return JSON.parse(localStorage.getItem('golf.round.'+id)||'null'); }catch(e){ return null; } }
+function pendingLegacy(){ const v2=new Set(DB.index().map(x=>x.id)); return legacyRounds().filter(x=>!v2.has(x.id)); }
+function convOwner(oo){ if(!oo) return null;
+  const SV={up:'上り',down:'下り',flat:'フラット'}, SH={hook:'フック',slice:'スライス',straight:'まっすぐ'};
+  const PR={in:'カップイン',ok:'OK',miss:'外れ'}, EX={3:'ナイス',2:'まずまず',1:'ミス'};
+  const through={shots:[],eval:{result:null,intent:null},res:null,remain:null};
+  const approach={shots:[],eval:{result:null,intent:null}};
+  (oo.shots||[]).forEach(s=>{ const shot={club:s.club||null,pen:0,pre:(s.tagsPre||s.tags||[]).slice(),post:(s.tagsPost||[]).slice(),note:'',yard:(s.remainYard!=null?s.remainYard:null)};
+    if(s.phase==='approach') approach.shots.push(shot); else through.shots.push(shot); });
+  const stroked=(oo.putts||[]).filter(p=>!p.ok), okAny=(oo.putts||[]).some(p=>p.ok);
+  const details=stroked.map(p=>({ dist:(p.steps!=null?p.steps:null), effDist:(p.effSteps!=null?p.effSteps:null),
+    slopeV:SV[p.slopeV]||null, slopeH:SH[p.slopeH]||null, result:PR[p.result]||null, exec:EX[p.exec]||null, touch:(p.touch!=null?p.touch:0), tags:(p.tags||[]).slice() }));
+  return { through, approach, putt:{ okOn:okAny, num:stroked.length, details } };
+}
+function convertLegacy(o){ const st=DB.settings();
+  const halves=(o.course&&o.course.halves||[]).map((hf,hi)=>({ name:hf.name||'', startHole:hf.startHole,
+    pars:(hf.pars||[]).slice(), yards:(hf.pars||[]).map((p,pos)=>{ const h=(o.holes||[])[hi*9+pos]; return (h&&h.teeDist!=null)?h.teeDist:(st.teeDefault[p]||350); }) }));
+  const holes=(o.holes||[]).map(h=>({ holeNo:h.holeNo, half:h.half, posInHalf:h.posInHalf, par:h.par,
+    yard:(h.teeDist!=null?h.teeDist:(st.teeDefault[h.par]||350)), scores:Object.assign({},h.scores||{}),
+    puttScore:(h.owner&&h.owner.puttNo!=null?h.owner.puttNo:null), note:h.note||'', owner:convOwner(h.owner) }));
+  return { roundId:o.roundId, date:o.date, logLevel:o.logLevel||3, course:{name:(o.course&&o.course.name)||'コース未設定',halves}, players:o.players||[{id:'p1',name:'自分',owner:true}], holes };
+}
+function importLegacy(){ const idx=legacyRounds(); let n=0;
+  idx.forEach(x=>{ try{ const old=legacyRound(x.id); if(!old)return; if(DB.round(x.id))return;
+    DB.saveRound(convertLegacy(old)); n++; }catch(e){} });
+  alert(n+'件の以前の記録を読み込みました。（元データも残しています）'); render(); }
+
 /* ============ モデル ============ */
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function parOn(par){ return Math.max(1, par-2); }
@@ -279,7 +308,13 @@ function renderHome(){
         <div class="sm muted" style="margin-top:4px;">スコア・ショット・パットの記録がすべて消え、元に戻せません。</div>
         <div class="btns"><button class="del" onclick="doDel('${r.id}')">削除する</button><button class="cancel" onclick="cancelDel()">やめる</button></div></div>`:''}
     </div>`; };
+  const pend=pendingLegacy();
+  const recover=pend.length?`<div class="card" style="border-color:var(--amber); background:rgba(240,180,41,.08); margin-bottom:12px">
+    <div style="font-weight:800; color:var(--amber)">以前の記録が ${pend.length} 件見つかりました</div>
+    <div class="sm muted" style="margin:4px 0 10px">旧バージョンで保存した記録です（端末内に残っています）。新アプリに読み込みますか？元データも残します。</div>
+    <button class="bigbtn" style="border-color:var(--amber); background:var(--amber); color:#3a2a00" onclick="importLegacy()">以前の記録を読み込む</button></div>`:'';
   $('app').innerHTML=`
+    ${recover}
     <h2>ラウンド</h2>
     <button class="bigbtn" onclick="newRound()">＋ 新しいラウンドを始める</button>
     ${all.length?`<div class="filters" style="margin-top:12px">${yOpt}${mOpt}</div>`:''}
