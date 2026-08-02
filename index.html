@@ -241,6 +241,39 @@ function importLegacy(){ const idx=legacyRounds(); let n=0;
   idx.forEach(x=>{ try{ const old=legacyRound(x.id); if(!old)return; if(DB.round(x.id))return;
     DB.saveRound(convertLegacy(old)); n++; }catch(e){} });
   alert(n+'件の以前の記録を読み込みました。（元データも残しています）'); render(); }
+/* 旧データ点検（元の記録を全項目表示・読取専用） */
+function openAuditList(){ S.view='auditlist'; render(); }
+function openAudit(id){ S.auditId=id; S.view='audit'; render(); }
+function renderAuditList(){ const rs=legacyRounds();
+  $('app').innerHTML=`<div class="backbar"><button class="backbtn" onclick="goHome()">‹ ホーム</button></div>
+    <div class="card" style="border-color:var(--accent);background:rgba(79,140,255,.06);margin-bottom:12px"><div class="sm">旧バージョンの<b>元データ</b>をそのまま表示する点検画面です（読取専用）。v2に取り込んだ内容と見比べて、欠けが無いか確認できます。</div></div>
+    <h2>以前の記録（元データ）</h2>
+    ${rs.length?rs.map(r=>`<div class="card" style="margin-bottom:10px"><div class="rcard"><div style="flex:1"><div style="font-weight:800">${esc(r.course)}</div><div class="sm muted">${r.date}</div></div><button class="open" onclick="openAudit('${r.id}')">点検</button></div></div>`).join(''):'<p class="sm muted">旧データはありません。</p>'}`;
+  $('topsub').textContent='旧データ点検'; $('topbtns').innerHTML=''; }
+function renderAudit(){ const o=legacyRound(S.auditId);
+  if(!o){ $('app').innerHTML='<div class="backbar"><button class="backbtn" onclick="openAuditList()">‹ 一覧</button></div><p>データが見つかりません。</p>'; $('topbtns').innerHTML=''; return; }
+  const RTG={4:'最高',3:'合格',2:'イマイチ',0:'NG'}, RAP={4:'in/OK',3:'合格',2:'イマイチ',1:'イマイチ',0:'NG'};
+  const IN={safe:'安全',attack:'勝負',reckless:'無謀',normal:'普通'}, PR={in:'カップイン',ok:'OK',miss:'外れ'};
+  const EX={3:'ナイス',2:'まずまず',1:'ミス'}, SV={up:'上り',down:'下り',flat:'フラット'}, SH={hook:'フック',slice:'スライス',straight:'まっすぐ'};
+  const pname=pid=>{ const p=(o.players||[]).find(p=>p.id===pid); return p?p.name:pid; };
+  const holes=(o.holes||[]).map(h=>{ const ow=h.owner||{};
+    const has=(h.scores&&Object.keys(h.scores).length)||h.note||(ow.shots||[]).length||(ow.putts||[]).length||ow.puttNo!=null; if(!has)return '';
+    const sc=Object.keys(h.scores||{}).map(pid=>pname(pid)+' '+h.scores[pid]).join(' / ');
+    const shots=(ow.shots||[]).map((s,i)=>{ const isA=s.phase==='approach'; const rl=s.result!=null?(isA?RAP[s.result]:RTG[s.result]):'';
+      return [(i+1)+'.', isA?'AP':'道中', s.club||'', s.remainYard!=null?s.remainYard+'y':'', rl?'結果'+rl:'', s.intent?'意図'+(IN[s.intent]||s.intent):'', (s.tagsPre||[]).concat(s.tagsPost||[],s.tags||[]).join('・')].filter(Boolean).join(' '); });
+    const putts=(ow.putts||[]).map((p,i)=>{ if(p.ok)return (i+1)+'. OK（打たず）';
+      return [(i+1)+'.', p.steps!=null?p.steps+'歩':'', p.effSteps!=null?'込'+p.effSteps:'', SV[p.slopeV]||'', SH[p.slopeH]||'', PR[p.result]||'', p.exec!=null?'実行'+(EX[p.exec]||''):'', p.touch!=null?'タッチ'+(p.touch>0?'+':'')+p.touch:'', (p.tags||[]).join('・')].filter(Boolean).join(' '); });
+    return `<div class="card" style="margin-bottom:8px"><div style="font-weight:800">No.${h.holeNo} Par${h.par}${h.teeDist!=null?' ・ '+h.teeDist+'y':''}</div>
+      ${sc?`<div class="sm" style="margin-top:4px">スコア: ${esc(sc)}</div>`:''}
+      ${h.note?`<div class="sm" style="margin-top:4px">📝 ${esc(h.note)}</div>`:''}
+      ${ow.puttNo!=null?`<div class="sm muted" style="margin-top:4px">パット数: ${ow.puttNo}</div>`:''}
+      ${shots.length?`<div class="sm" style="margin-top:6px"><b>ショット</b><br>${shots.map(esc).join('<br>')}</div>`:''}
+      ${putts.length?`<div class="sm" style="margin-top:6px"><b>パット</b><br>${putts.map(esc).join('<br>')}</div>`:''}</div>`; }).filter(Boolean).join('');
+  $('app').innerHTML=`<div class="backbar"><button class="backbtn" onclick="openAuditList()">‹ 一覧</button></div>
+    <h2>${esc((o.course&&o.course.name)||'')} ・ ${o.date}</h2>
+    <div class="card" style="border-color:var(--amber);background:rgba(240,180,41,.08);margin-bottom:10px"><div class="sm"><b>v2で未取り込みの項目</b>：ショットごとの「結果・意図」だけは、v2が局面ごとにまとめる方式のため取り込んでいません（下に元の値を表示）。他はv2にも入っています。</div></div>
+    ${holes||'<p class="sm muted">記録のあるホールがありません。</p>'}`;
+  $('topsub').textContent='旧データ点検'; $('topbtns').innerHTML=''; }
 
 /* ============ モデル ============ */
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -320,7 +353,8 @@ function renderHome(){
     ${all.length?`<div class="filters" style="margin-top:12px">${yOpt}${mOpt}</div>`:''}
     ${rounds.length?rounds.map(card).join(''):(all.length?'<p class="sm muted" style="margin:10px 4px;">該当するラウンドがありません。</p>':'<p class="sm muted" style="margin:10px 4px;">まだ記録がありません。</p>')}
     <h2>設定</h2>
-    <button class="ghostbtn" onclick="openAppSettings()">⚙ アプリ設定（名前・単位・番手・タグ）</button>`;
+    <button class="ghostbtn" onclick="openAppSettings()">⚙ アプリ設定（名前・単位・番手・タグ）</button>
+    ${legacyRounds().length?`<h2>旧データ点検</h2><button class="ghostbtn" onclick="openAuditList()">🔍 以前の記録（元データ）を確認</button>`:''}`;
   $('topsub').textContent='ホーム'; $('topbtns').innerHTML='';
 }
 function resume(id){ const r=DB.round(id); if(!r)return; S.round=r; S.half=0; S.view='card'; render(); }
@@ -621,6 +655,8 @@ function render(){
   if(S.view==='home') renderHome();
   else if(S.view==='setup') renderSetup();
   else if(S.view==='appset') renderAppSettings();
+  else if(S.view==='auditlist') renderAuditList();
+  else if(S.view==='audit') renderAudit();
   else if(S.view==='detail') renderDetail();
   else renderCard();
   if(S.view!==_lastView || (S.view==='detail'&&S.detailHole!==_lastHole)) window.scrollTo(0,0);
