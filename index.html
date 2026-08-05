@@ -55,6 +55,15 @@
   .schead .cell{ padding:9px 4px; text-align:center; }
   .hcell{ display:flex; flex-direction:column; justify-content:center; gap:3px; padding:10px 8px; margin:6px; cursor:pointer; background:var(--surface3); border:1px solid var(--border); border-radius:10px; }
   .hcell:active{ border-color:var(--accent); background:rgba(79,140,255,.14); }
+  .hcell.todo{ background:transparent; border-style:dashed; }
+  .hcell.todo .no{ color:var(--muted); }
+  .hcell.warn{ border-color:var(--bad); background:rgba(255,93,93,.10); }
+  .hwarn{ color:var(--bad); font-weight:800; }
+  .tdet{ font-size:10px; color:var(--muted); font-weight:700; margin-top:3px; line-height:1.35; }
+  .navh{ appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:10px; min-height:40px; padding:8px 10px; font-weight:800; font-size:13px; white-space:nowrap; }
+  .navh:disabled{ opacity:.3; }
+  .themebar{ font-size:12px; color:var(--teal); font-weight:700; margin:0 4px 10px; padding:6px 10px; background:rgba(45,212,191,.10); border:1px solid rgba(45,212,191,.3); border-radius:8px; }
+  .exprow label{ display:flex; align-items:center; gap:10px; }
   .hcell .no{ font-weight:800; font-size:19px; line-height:1; } .hcell .meta{ font-size:11px; color:var(--muted); } .hcell .go{ font-size:10px; color:var(--accent); font-weight:800; }
   .pcellwrap{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 4px; border-left:1px solid var(--border); }
   .pcellwrap.me{ background:rgba(79,140,255,.07); }
@@ -194,8 +203,8 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.3.0';
-const APP_BUILD='2026-08-03';
+const APP_VERSION='2.4.0';
+const APP_BUILD='2026-08-04';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -337,6 +346,73 @@ function renderAudit(){ const o=legacyRound(S.auditId);
     ${holes||'<p class="sm muted">記録のあるホールがありません。</p>'}`;
   $('topsub').textContent='旧データ点検'; $('topbtns').innerHTML=''; }
 
+/* ============ エクスポート（選択→テキスト/JSON） ============ */
+function openExport(){ if(!S.exportSel)S.exportSel=new Set(); S.view='exportsel'; render(); }
+function toggleExportSel(id){ if(S.exportSel.has(id))S.exportSel.delete(id); else S.exportSel.add(id); render(); }
+function exportSelAll(ids){ const all=ids.every(id=>S.exportSel.has(id)); if(all)ids.forEach(id=>S.exportSel.delete(id)); else ids.forEach(id=>S.exportSel.add(id)); render(); }
+function curExportIds(){ return [...(S.exportSel||[])]; }
+function openExportView(){ if(!S.exportSel||S.exportSel.size===0){ alert('ラウンドを選択してください'); return; } S.view='exportview'; render(); }
+function renderExportSel(){
+  const all=DB.index().filter(r=> (!homeFilter.y||r.date.slice(0,4)===homeFilter.y) && (!homeFilter.m||r.date.slice(5,7)===homeFilter.m));
+  const ids=all.map(r=>r.id);
+  const yrs=[...new Set(DB.index().map(r=>r.date.slice(0,4)))].sort().reverse();
+  const yOpt=`<select onchange="setFilter('y',this.value)"><option value="">年（すべて）</option>${yrs.map(y=>`<option value="${y}" ${homeFilter.y===y?'selected':''}>${y}年</option>`).join('')}</select>`;
+  const mOpt=`<select onchange="setFilter('m',this.value)"><option value="">月（すべて）</option>${[...Array(12)].map((_,i)=>{const m=String(i+1).padStart(2,'0');return `<option value="${m}" ${homeFilter.m===m?'selected':''}>${i+1}月</option>`;}).join('')}</select>`;
+  $('app').innerHTML=`<div class="backbar"><button class="backbtn" onclick="goHome()">‹ ホーム</button></div>
+    <h2>書き出すラウンドを選択</h2>
+    <div class="filters">${yOpt}${mOpt}</div>
+    <button class="ghostbtn" style="margin-bottom:8px" onclick="exportSelAll([${ids.map(i=>`'${i}'`).join(',')}])">すべて選択／解除</button>
+    ${all.map(r=>`<label class="card exprow" style="margin-bottom:8px"><input type="checkbox" ${S.exportSel.has(r.id)?'checked':''} onchange="toggleExportSel('${r.id}')" style="width:22px;height:22px"><span style="flex:1"><span style="font-weight:800">${esc(r.course)}</span><br><span class="sm muted">${r.date}</span></span></label>`).join('')||'<p class="sm muted">ラウンドがありません。</p>'}`;
+  $('topsub').textContent='記録を書き出し';
+  $('topbtns').innerHTML=`<button class="iconbtn primary" onclick="openExportView()">選択を書き出し（${S.exportSel?S.exportSel.size:0}）</button>`;
+}
+function labPair(arr,v){ const x=arr.find(p=>p[0]===v); return x?x[1]:(v||''); }
+function buildRoundText(r){ const lines=[]; const t=selfTotal(r), d=detailScore(r);
+  lines.push('=== '+((r.course&&r.course.name)||'コース未設定')+' ・ '+r.date+' ・ '+labPair(LV,r.logLevel)+' ===');
+  lines.push('スコア合計: '+(t!=null?t:'—')+(d?(' ／ 詳細 '+d.s+'-'+d.a+'-'+d.p):''));
+  if(r.themes){ if(r.themes[0])lines.push('前半テーマ: '+r.themes[0]); if(r.themes[1])lines.push('後半テーマ: '+r.themes[1]); }
+  const ps=r.players.filter(p=>p.owner||p.name);
+  r.holes.forEach(h=>{ const anyScore=ps.some(p=>h.scores[p.id]!=null); const own=h.owner;
+    if(!anyScore && !hasDetailInput(h) && !h.note) return;
+    lines.push(''); lines.push('No.'+h.holeNo+' Par'+h.par+' '+h.yard+'y');
+    const sc=ps.filter(p=>h.scores[p.id]!=null).map(p=>p.name+' '+h.scores[p.id]).join(' / ');
+    if(sc)lines.push('  スコア: '+sc+(h.puttScore!=null?'（パット'+h.puttScore+'）':''));
+    if(own){ const sl=(s,i)=>['  '+(i+1)+'.', s.pen?'ペナ+'+s.pen:'', s.club||'', s.yard!=null?s.yard+'y':'', (s.pre||[]).concat(s.post||[]).join('・'), s.note||''].filter(Boolean).join(' ');
+      if(own.through.shots.length){ lines.push(' ［ショット］'); own.through.shots.forEach((s,i)=>lines.push(sl(s,i))); }
+      const te=[own.through.eval.result?'結果'+labPair(CRESULT,own.through.eval.result):'', own.through.eval.intent?'意図'+labPair(CINTENT,own.through.eval.intent):'', own.through.res?'道中結果:'+(own.through.res==='on'?'ON':'アプローチ'):''].filter(Boolean).join(' / ');
+      if(te)lines.push('  評価: '+te);
+      if(own.approach.shots.length){ lines.push(' ［アプローチ］'); own.approach.shots.forEach((s,i)=>lines.push(sl(s,i)));
+        const ae=[own.approach.eval.result?'結果'+labPair(ARESULT,own.approach.eval.result):'', own.approach.eval.intent?'意図'+labPair(CINTENT,own.approach.eval.intent):''].filter(Boolean).join(' / '); if(ae)lines.push('  評価: '+ae); }
+      const pt=own.putt; if(pt.num>0||pt.okOn||pt.details.some(x=>x.result)){ lines.push(' ［パット］計'+puttCount(h)+'（打'+pt.num+(pt.okOn?'+OK':'')+'）');
+        pt.details.forEach((dd,i)=>lines.push(['  '+(i+1)+'.', dd.dist!=null?dd.dist+'歩':'', dd.effDist!=null?'込'+dd.effDist:'', dd.slopeV||'', dd.slopeH||'', dd.result||'', dd.exec?'実行'+dd.exec:'', dd.touch?'タッチ'+(dd.touch>0?'+':'')+dd.touch:'', (dd.tags||[]).join('・')].filter(Boolean).join(' '))); }
+    }
+    if(h.note)lines.push('  メモ: '+h.note);
+  });
+  return lines.join('\n'); }
+function buildExportText(ids){ return ids.map(id=>{ const r=DB.round(id); return r?buildRoundText(r):''; }).filter(Boolean).join('\n\n'); }
+function fallbackCopy(txt,msg){ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');alert(msg||'コピーしました');}catch(e){alert('コピーできませんでした');} ta.remove(); }
+function copyText(txt,msg){ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>alert(msg||'コピーしました')).catch(()=>fallbackCopy(txt,msg)); } else fallbackCopy(txt,msg); }
+function copyExport(){ copyText(buildExportText(curExportIds()),'コピーしました'); }
+function copyExportAI(){ copyText('以下は私のゴルフのラウンド記録です。傾向を分析し、次に改善すべき点を具体的にアドバイスしてください。\n\n'+buildExportText(curExportIds()),'AI診断用にコピーしました'); }
+function shareExport(){ const t=buildExportText(curExportIds()); if(navigator.share){ navigator.share({title:'100yd Sync 記録',text:t}).catch(()=>{}); } else copyText(t,'共有に非対応のためコピーしました'); }
+function downloadExportTxt(){ const blob=new Blob([buildExportText(curExportIds())],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='100yd-sync-'+todayStr()+'.txt'; document.body.appendChild(a); a.click(); a.remove(); }
+function exportSelJSON(){ try{ const ids=curExportIds(); const data={}; const s=localStorage.getItem(NS+'settings'); if(s)data[NS+'settings']=s;
+  const idx=[]; ids.forEach(id=>{ const rk=NS+'round.'+id, rv=localStorage.getItem(rk); if(rv){ data[rk]=rv; const r=JSON.parse(rv); idx.push({id:r.roundId,date:r.date,course:(r.course&&r.course.name)||''}); } });
+  data[NS+'rounds']=JSON.stringify(idx);
+  const blob=new Blob([JSON.stringify({app:'100yd-sync',exported:todayStr(),data},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='100yd-sync-selected-'+todayStr()+'.json'; document.body.appendChild(a); a.click(); a.remove();
+}catch(e){ alert('書き出しに失敗しました'); } }
+function renderExportView(){ const text=buildExportText(curExportIds());
+  $('app').innerHTML=`<div class="backbar"><button class="backbtn" onclick="S.view='exportsel';render()">‹ 選択に戻る</button></div>
+    <div class="grid2" style="margin-bottom:10px">
+      <button class="ghostbtn" onclick="copyExport()">📋 コピー</button>
+      <button class="ghostbtn" onclick="shareExport()">📤 共有</button>
+      <button class="ghostbtn" onclick="downloadExportTxt()">💾 .txtで保存</button>
+      <button class="ghostbtn" onclick="copyExportAI()">🤖 AI診断用にコピー</button>
+      <button class="ghostbtn" onclick="exportSelJSON()">🗄 選択をJSONで書き出し（復元用）</button></div>
+    <div class="card"><pre style="white-space:pre-wrap; word-break:break-word; font-size:13px; margin:0; font-family:inherit">${esc(text)}</pre></div>`;
+  $('topsub').textContent='書き出しプレビュー'; $('topbtns').innerHTML=''; }
+
 /* ============ モデル ============ */
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function parOn(par){ return Math.max(1, par-2); }
@@ -383,6 +459,16 @@ function puttSyncNum(p){ while(p.details.length<p.num)p.details.push(mkPutt()); 
 function ownerPid(r){ const o=r.players.find(p=>p.owner); return o?o.id:'p1'; }
 function selfTotal(r){ const pid=ownerPid(r); let s=0,any=false; r.holes.forEach(h=>{const v=h.scores[pid]; if(v!=null){s+=v;any=true;}}); return any?s:null; }
 function detailScore(r){ let s=0,a=0,p=0,any=false; r.holes.forEach(h=>{ if(h.owner){ s+=throughCount(h); a+=approachCount(h); p+=puttCount(h); any=true; } }); return any?{s,a,p,tot:s+a+p}:null; }
+function hasDetailInput(h){ if(!h.owner)return false; const o=h.owner;
+  const shotF=o.through.shots.some(s=>s.club||s.pen||(s.pre&&s.pre.length)||(s.post&&s.post.length)||s.note) || o.approach.shots.length>0;
+  const evalF=o.through.eval.result||o.through.eval.intent||o.through.res||o.approach.eval.result||o.approach.eval.intent;
+  const puttF=o.putt.num>0||o.putt.okOn||o.putt.details.some(d=>d.result||d.exec);
+  return !!(shotF||evalF||puttF); }
+function scoreMismatch(h){ const pid=ownerPid(S.round); const man=h.scores[pid];
+  if(man==null || !hasDetailInput(h)) return false;
+  return (throughCount(h)+approachCount(h)+puttCount(h)) !== man; }
+function themeOf(hf){ return (S.round.themes&&S.round.themes[hf])||''; }
+function setTheme(hf,v){ if(!S.round.themes)S.round.themes=['','']; S.round.themes[hf]=v; save(); }
 
 /* ============ ホーム ============ */
 function goHome(){ S.view='home'; S.round=null; delConfirm=null; render(); }
@@ -415,6 +501,7 @@ function renderHome(){
     <button class="bigbtn" onclick="newRound()">＋ 新しいラウンドを始める</button>
     ${all.length?`<div class="filters" style="margin-top:12px">${yOpt}${mOpt}</div>`:''}
     ${rounds.length?rounds.map(card).join(''):(all.length?'<p class="sm muted" style="margin:10px 4px;">該当するラウンドがありません。</p>':'<p class="sm muted" style="margin:10px 4px;">まだ記録がありません。</p>')}
+    ${all.length?`<h2>書き出し</h2><button class="ghostbtn" onclick="openExport()">📝 記録を書き出し（テキスト/JSON・AI診断用）</button>`:''}
     <h2>設定</h2>
     <button class="ghostbtn" onclick="openAppSettings()">⚙ アプリ設定（名前・単位・番手・タグ）</button>
     ${legacyRounds().length?`<h2>旧データ点検</h2><button class="ghostbtn" onclick="openAuditList()">🔍 以前の記録（元データ）を確認</button>`:''}
@@ -483,7 +570,7 @@ function commitSetup(){
   const id=todayStr()+'-'+String(Date.now()).slice(-4);
   const holes=[...Array(18)].map((_,i)=>{ const hi=i<9?0:1, pos=i%9, HH=halves[hi];
     return { holeNo:HH.startHole+pos, half:hi, posInHalf:pos, par:HH.pars[pos], yard:HH.yards[pos], scores:{}, puttScore:null, note:'', owner:null }; });
-  S.round={ roundId:id, date:setup.date, logLevel:setup.logLevel, course:{name:cname,halves}, players, holes };
+  S.round={ roundId:id, date:setup.date, logLevel:setup.logLevel, course:{name:cname,halves}, players, holes, themes:['',''] };
   save(); S.half=0; S.view='card'; render();
 }
 
@@ -581,16 +668,23 @@ function renderCard(){
   let rows='';
   for(let i=0;i<9;i++){ const idx=h0+i, h=r.holes[idx]; h.__i=idx;
     const cells=ps.map(p=>scoreCell(h,p.id,!!p.owner)).join('');
-    rows+=`<div class="scrow"><div class="hcell" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}</span><span class="meta">Par ${h.par}・${h.yard}y</span><span class="go">›</span></div>${cells}</div>`; }
+    const mism=scoreMismatch(h);
+    rows+=`<div class="scrow"><div class="hcell ${hasDetailInput(h)?'':'todo'} ${mism?'warn':''}" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}${mism?' <span class="hwarn">！</span>':''}</span><span class="meta">Par ${h.par}・${h.yard}y</span><span class="go">›</span></div>${cells}</div>`; }
+  const oid=ownerPid(r);
   const halfTot=(hh,pid)=>{ let s=0,ps2=0,any=false; for(let i=0;i<9;i++){const h=r.holes[hh*9+i], v=h.scores[pid]; if(v!=null){s+=v;ps2+=h.par;any=true;}} return any?{s,d:s-ps2}:null; };
+  const halfDet=(hh)=>{ let s=0,a=0,p=0,pu=0; for(let i=0;i<9;i++){const h=r.holes[hh*9+i]; if(h.owner){s+=throughCount(h);a+=approachCount(h);p+=puttCount(h);} if(h.puttScore!=null)pu+=h.puttScore;} return {s,a,p,pu}; };
+  const grandDet=()=>{ const A=halfDet(0),B=halfDet(1); return {s:A.s+B.s,a:A.a+B.a,p:A.p+B.p,pu:A.pu+B.pu}; };
   const cellTot=t=> t?`${t.s} <span class="ou">(${t.d>=0?'+':''}${t.d})</span>`:'–';
+  const detLine=d=> (d && (d.s+d.a+d.p>0||d.pu>0))?`<div class="tdet">詳細 ${d.s}-${d.a}-${d.p}<br>パット計 ${d.pu}</div>`:'';
   const grand=pid=>{ const a=halfTot(0,pid),b=halfTot(1,pid); if(!a&&!b)return null; return {s:(a?a.s:0)+(b?b.s:0), d:(a?a.d:0)+(b?b.d:0)}; };
-  const totRow=(lab,fn,cl)=>`<div class="totrow ${cl||''}"><div class="cell tlab">${lab}</div>${ps.map(p=>`<div class="cell tnum">${cellTot(fn(p.id))}</div>`).join('')}</div>`;
-  const totalsHtml = S.half===0 ? totRow('計',pid=>halfTot(0,pid))
-    : totRow('計',pid=>halfTot(1,pid))+totRow('前半',pid=>halfTot(0,pid),'sub')+totRow('合計',grand,'grand');
+  const totRow=(lab,fn,detFn,cl)=>`<div class="totrow ${cl||''}"><div class="cell tlab">${lab}</div>${ps.map(p=>`<div class="cell tnum">${cellTot(fn(p.id))}${(p.id===oid&&detFn)?detLine(detFn()):''}</div>`).join('')}</div>`;
+  const totalsHtml = S.half===0 ? totRow('計',pid=>halfTot(0,pid),()=>halfDet(0))
+    : totRow('計',pid=>halfTot(1,pid),()=>halfDet(1))+totRow('前半',pid=>halfTot(0,pid),()=>halfDet(0),'sub')+totRow('合計',grand,grandDet,'grand');
   const hn=hf=>(r.course.halves[hf]&&r.course.halves[hf].name)||(hf===0?'OUT':'IN');
   $('app').innerHTML=`
     <div class="halfsw"><button class="${S.half===0?'on':''}" onclick="setHalf(0)">前半 ${esc(hn(0))}</button><button class="${S.half===1?'on':''}" onclick="setHalf(1)">後半 ${esc(hn(1))}</button></div>
+    <div class="card" style="margin:0 4px 12px; padding:10px"><div class="taglab" style="margin:0 0 4px">${S.half===0?'前半':'後半'}の目標・テーマ</div>
+      <input type="text" value="${esc(themeOf(S.half))}" placeholder="例：3パットしない／曲げても林に入れない" oninput="setTheme(${S.half},this.value)"></div>
     <div class="sc"><div class="scrow schead"><div class="cell" style="text-align:left; padding-left:8px;">ホール</div>
       ${ps.map(p=>`<div class="cell">${esc(p.name)}${p.owner?' ★':''}</div>`).join('')}</div>
       ${rows}${totalsHtml}</div>`;
@@ -605,6 +699,9 @@ function firstStage(){ const lv=S.round.logLevel; return lv>=3?'through':(lv>=2?
 function openDetail(i){ S.detailHole=i; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
   S.stage=firstStage(); S.view='detail'; render(); }
+function navDetail(d){ const n=S.detailHole+d; if(n<0||n>17)return; S.detailHole=n; const own=OWN();
+  if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
+  if(!availStages()[S.stage]) S.stage=firstStage(); render(); }
 function setStage(st){ if(!availStages()[st])return; S.stage=st; render(); }
 function stgObj(){ return OWN()[S.stage]; }
 function shots(){ return stgObj().shots; }
@@ -707,8 +804,12 @@ function renderDetail(){
   const hn=(S.round.course.halves[h.half]&&S.round.course.halves[h.half].name)||(h.half===0?'OUT':'IN');
   $('app').innerHTML=`
     <div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">自動保存中</div></div>
-    <div class="titlebar"><b style="font-size:18px;">${esc(hn)} No.${h.holeNo}</b><span class="muted">Par ${h.par}</span>
-      <select class="ydsel" onchange="setYardHole(this.value)">${yardOpts(h.yard)}</select></div>
+    <div class="titlebar">
+      <button class="navh" onclick="navDetail(-1)" ${S.detailHole===0?'disabled':''}>‹ 前</button>
+      <b style="flex:1; text-align:center; font-size:17px;">${esc(hn)} No.${h.holeNo} <span class="muted" style="font-weight:700;">Par ${h.par}</span></b>
+      <button class="navh" onclick="navDetail(1)" ${S.detailHole===17?'disabled':''}>次 ›</button>
+      <select class="ydsel" style="margin-left:0" onchange="setYardHole(this.value)">${yardOpts(h.yard)}</select></div>
+    ${themeOf(h.half)?`<div class="themebar">🎯 ${esc(themeOf(h.half))}</div>`:''}
     <div class="card" style="margin-bottom:10px"><div class="taglab" style="margin:0 0 6px">ホールメモ（テキスト／音声）</div>
       <textarea placeholder="このホールのメモ" oninput="setHoleNote(this.value)">${esc(h.note)}</textarea></div>
     <div class="stagetabs">${STAGES.map(tab).join('')}</div>
@@ -731,6 +832,8 @@ function render(){
   else if(S.view==='appset') renderAppSettings();
   else if(S.view==='auditlist') renderAuditList();
   else if(S.view==='audit') renderAudit();
+  else if(S.view==='exportsel') renderExportSel();
+  else if(S.view==='exportview') renderExportView();
   else if(S.view==='detail') renderDetail();
   else renderCard();
   if(S.view!==_lastView || (S.view==='detail'&&S.detailHole!==_lastHole)) window.scrollTo(0,0);
