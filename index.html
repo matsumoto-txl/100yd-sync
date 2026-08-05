@@ -63,7 +63,8 @@
   .navh{ appearance:none; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); border-radius:10px; min-height:40px; padding:8px 10px; font-weight:800; font-size:13px; white-space:nowrap; }
   .navh:disabled{ opacity:.3; }
   .themebar{ font-size:12px; color:var(--teal); font-weight:700; margin:0 4px 10px; padding:6px 10px; background:rgba(45,212,191,.10); border:1px solid rgba(45,212,191,.3); border-radius:8px; }
-  .exprow label{ display:flex; align-items:center; gap:10px; }
+  .exprow{ display:flex; align-items:center; gap:10px; }
+  .exprow input[type=checkbox]{ flex:0 0 auto; }
   .hcell .no{ font-weight:800; font-size:19px; line-height:1; } .hcell .meta{ font-size:11px; color:var(--muted); } .hcell .go{ font-size:10px; color:var(--accent); font-weight:800; }
   .pcellwrap{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 4px; border-left:1px solid var(--border); }
   .pcellwrap.me{ background:rgba(79,140,255,.07); }
@@ -203,7 +204,7 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.4.0';
+const APP_VERSION='2.4.1';
 const APP_BUILD='2026-08-04';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
