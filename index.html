@@ -204,8 +204,8 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.5.0';
-const APP_BUILD='2026-08-04';
+const APP_VERSION='2.6.0';
+const APP_BUILD='2026-08-07';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -394,7 +394,7 @@ function buildExportText(ids){ return ids.map(id=>{ const r=DB.round(id); return
 function fallbackCopy(txt,msg){ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');alert(msg||'コピーしました');}catch(e){alert('コピーできませんでした');} ta.remove(); }
 function copyText(txt,msg){ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>alert(msg||'コピーしました')).catch(()=>fallbackCopy(txt,msg)); } else fallbackCopy(txt,msg); }
 function copyExport(){ copyText(buildExportText(curExportIds()),'コピーしました'); }
-function copyExportAI(){ copyText('以下は私のゴルフのラウンド記録です。傾向を分析し、次に改善すべき点を具体的にアドバイスしてください。\n\n'+buildExportText(curExportIds()),'AI診断用にコピーしました'); }
+function copyExportAI(){ copyText(aiPrompt()+'\n\n'+buildExportText(curExportIds()),'AI診断用にコピーしました'); }
 function shareExport(){ const t=buildExportText(curExportIds()); if(navigator.share){ navigator.share({title:'100yd Sync 記録',text:t}).catch(()=>{}); } else copyText(t,'共有に非対応のためコピーしました'); }
 function downloadExportTxt(){ const blob=new Blob([buildExportText(curExportIds())],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='100yd-sync-'+todayStr()+'.txt'; document.body.appendChild(a); a.click(); a.remove(); }
 function exportSelJSON(){ try{ const ids=curExportIds(); const data={}; const s=localStorage.getItem(NS+'settings'); if(s)data[NS+'settings']=s;
@@ -407,6 +407,8 @@ function renderExportView(){ const text=buildExportText(curExportIds());
   const aiCard = aiBusy ? `<div class="card" style="margin-bottom:10px; border-color:var(--accent)"><div class="sm muted">🤖 Geminiで診断中…</div></div>`
     : (aiResult ? `<div class="card" style="margin-bottom:10px; border-color:var(--accent)"><div class="taglab" style="margin:0 0 6px">🤖 AI診断</div><pre style="white-space:pre-wrap; word-break:break-word; font-size:13px; margin:0; font-family:inherit">${esc(aiResult)}</pre></div>` : '');
   $('app').innerHTML=`<div class="backbar"><button class="backbtn" onclick="S.view='exportsel';render()">‹ 選択に戻る</button></div>
+    <div class="card" style="margin-bottom:10px"><div class="taglab" style="margin:0 0 6px">🤖 AI診断モード</div>
+      <select style="width:100%" onchange="setAiMode(this.value)">${AIMODES.map(m=>`<option value="${m[0]}" ${aiMode===m[0]?'selected':''}>${m[1]}</option>`).join('')}</select></div>
     <div class="grid2" style="margin-bottom:10px">
       <button class="bigbtn" onclick="runDiagnose()" ${aiBusy?'disabled':''}>🤖 Geminiで診断</button>
       <button class="ghostbtn" onclick="copyExport()">📋 コピー</button>
@@ -440,11 +442,20 @@ async function geminiCall(parts){ const k=getKey(); if(!k)throw new Error('API�
 function geminiText(prompt){ return geminiCall([{text:prompt}]); }
 function geminiAudio(b64,mime,prompt){ return geminiCall([{text:prompt},{inlineData:{mimeType:mime,data:b64}}]); }
 async function testKey(){ try{ setModel(''); const m=await pickModel(); const t=await geminiText('「OK」とだけ返答してください。'); alert('接続OK ✅\nモデル: '+m+'\n応答: '+t.trim().slice(0,40)); }catch(e){ alert('接続に失敗 ❌\n'+e.message); } }
-/* AI診断 */
+/* AI診断（モード選択式） */
+const AIMODES=[
+  ['ap','アプローチ＋パット','あなたはショートゲーム専門のゴルフコーチです。以下の記録のうち「アプローチ」と「パット」に注目し、寄せとパットの傾向・課題を簡潔に分析し、次ラウンドで実行すべき具体的アドバイスを3つ以内、日本語で示してください。'],
+  ['shot','ショット（運び）','あなたはゴルフコーチです。以下の記録の「ショット（ティー〜グリーンへの運び）」に注目し、番手選択・意図（安全/普通/勝負/無謀）・結果の傾向と課題を分析し、次ラウンドで実行すべき具体的アドバイスを3つ以内、日本語で示してください。'],
+  ['read','パットの読み','あなたはパッティング専門コーチです。以下のパット記録（距離・傾斜込み距離・読み傾斜(縦/横)・タッチ・タグ・結果）から、グリーンの読み（ライン/傾斜/タッチ）の傾向と課題を分析し、次に実行すべき具体的アドバイスを3つ以内、日本語で示してください。'],
+  ['theme','目標・テーマ達成度','あなたはゴルフコーチです。以下の記録には各ハーフの「目標・テーマ」が含まれます。その目標に対して実際のプレーがどうだったか（達成/未達をプレー内容を根拠に）評価し、次に向けた具体的アドバイスを3つ以内、日本語で示してください。目標が未設定なら一言添えてください。'],
+  ['all','総合（全部入り）','あなたは総合的なゴルフコーチです。以下の記録全体（ショット/アプローチ/パット/目標・テーマ）を俯瞰し、良い点・最重要課題・次ラウンドで実行すべき具体的アドバイスを5つ以内、日本語で示してください。']
+];
+function aiPrompt(){ const m=AIMODES.find(x=>x[0]===aiMode)||AIMODES[0]; return m[2]; }
+function setAiMode(m){ aiMode=m; render(); }
 async function runDiagnose(){ if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
   const ids=curExportIds(); if(!ids.length){ alert('ラウンドを選択してください'); return; }
   aiBusy=true; aiResult=''; render();
-  try{ aiResult=await geminiText('あなたはゴルフのコーチです。以下は「100yd以内のスコアメイク」と「パット」に特化した私のラウンド記録です。良い点と課題を簡潔に分析し、次ラウンドで実行すべき具体的アドバイスを3つ以内、日本語で示してください。\n\n'+buildExportText(ids)); }
+  try{ aiResult=await geminiText(aiPrompt()+'\n\n'+buildExportText(ids)); }
   catch(e){ aiResult='⚠ '+e.message; }
   aiBusy=false; render(); }
 /* 録音→文字起こし */
@@ -480,7 +491,7 @@ function halfFloor(y){ if(y==null)return null; const h=y/2; return h>20?Math.flo
 /* ============ 状態 ============ */
 let S={ view:'home', round:null, half:0, detailHole:0, stage:'through' };
 let setup=null, appset=null, delConfirm=null, homeFilter={y:'',m:''};
-let aiBusy=false, aiResult='', recState='idle', mediaRec=null, recChunks=[], recHole=null;
+let aiBusy=false, aiResult='', aiMode='ap', recState='idle', mediaRec=null, recChunks=[], recHole=null;
 const $=id=>document.getElementById(id);
 function save(){ if(S.round){ DB.saveRound(S.round); flashSave(); } }
 function flashSave(){ const c=$('savechip'); c.classList.add('on'); clearTimeout(flashSave._t); flashSave._t=setTimeout(()=>c.classList.remove('on'),900); }
