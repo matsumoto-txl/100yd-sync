@@ -204,7 +204,7 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.4.1';
+const APP_VERSION='2.5.0';
 const APP_BUILD='2026-08-04';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -277,7 +277,7 @@ function reimportAsCopy(id){ const o=legacyRound(id); if(!o){ alert('元デー�
 function reimportOverwrite(id){ if(!confirm('この記録を旧データで上書きします。v2で編集した内容は消えます。よろしいですか？（元データは残ります）'))return;
   const o=legacyRound(id); if(!o){ alert('元データが見つかりません'); return; }
   DB.saveRound(convertLegacy(o)); markMigrated(id); alert('旧データから作り直しました（上書き）。'); goHome(); }
-function exportData(){ try{ const data={}; Object.keys(localStorage).filter(k=>k.startsWith('golf.')).forEach(k=>data[k]=localStorage.getItem(k));
+function exportData(){ try{ const data={}; Object.keys(localStorage).filter(k=>k.startsWith('golf.')&&k!=='golf.v2.apikey').forEach(k=>data[k]=localStorage.getItem(k));
   const blob=new Blob([JSON.stringify({app:'100yd-sync',exported:todayStr(),data},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='100yd-sync-backup-'+todayStr()+'.json'; document.body.appendChild(a); a.click(); a.remove();
 }catch(e){ alert('書き出しに失敗しました'); } }
@@ -404,15 +404,65 @@ function exportSelJSON(){ try{ const ids=curExportIds(); const data={}; const s=
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='100yd-sync-selected-'+todayStr()+'.json'; document.body.appendChild(a); a.click(); a.remove();
 }catch(e){ alert('書き出しに失敗しました'); } }
 function renderExportView(){ const text=buildExportText(curExportIds());
+  const aiCard = aiBusy ? `<div class="card" style="margin-bottom:10px; border-color:var(--accent)"><div class="sm muted">🤖 Geminiで診断中…</div></div>`
+    : (aiResult ? `<div class="card" style="margin-bottom:10px; border-color:var(--accent)"><div class="taglab" style="margin:0 0 6px">🤖 AI診断</div><pre style="white-space:pre-wrap; word-break:break-word; font-size:13px; margin:0; font-family:inherit">${esc(aiResult)}</pre></div>` : '');
   $('app').innerHTML=`<div class="backbar"><button class="backbtn" onclick="S.view='exportsel';render()">‹ 選択に戻る</button></div>
     <div class="grid2" style="margin-bottom:10px">
+      <button class="bigbtn" onclick="runDiagnose()" ${aiBusy?'disabled':''}>🤖 Geminiで診断</button>
       <button class="ghostbtn" onclick="copyExport()">📋 コピー</button>
       <button class="ghostbtn" onclick="shareExport()">📤 共有</button>
       <button class="ghostbtn" onclick="downloadExportTxt()">💾 .txtで保存</button>
-      <button class="ghostbtn" onclick="copyExportAI()">🤖 AI診断用にコピー</button>
+      <button class="ghostbtn" onclick="copyExportAI()">🤖 AI診断用にコピー（外部AIへ）</button>
       <button class="ghostbtn" onclick="exportSelJSON()">🗄 選択をJSONで書き出し（復元用）</button></div>
+    ${aiCard}
     <div class="card"><pre style="white-space:pre-wrap; word-break:break-word; font-size:13px; margin:0; font-family:inherit">${esc(text)}</pre></div>`;
   $('topsub').textContent='書き出しプレビュー'; $('topbtns').innerHTML=''; }
+
+/* ============ Gemini（案A：自分のキーを端末保存で直叩き・オンライン時のみ） ============ */
+const GBASE='https://generativelanguage.googleapis.com/v1beta';
+function getKey(){ return localStorage.getItem('golf.v2.apikey')||''; }
+function setKey(v){ v=(v||'').trim(); if(v)localStorage.setItem('golf.v2.apikey',v); else localStorage.removeItem('golf.v2.apikey'); }
+function getModel(){ return localStorage.getItem('golf.v2.model')||''; }
+function setModel(m){ if(m)localStorage.setItem('golf.v2.model',m); else localStorage.removeItem('golf.v2.model'); }
+async function listModels(){ const k=getKey(); if(!k)throw new Error('APIキー未設定'); const r=await fetch(GBASE+'/models?key='+encodeURIComponent(k));
+  if(!r.ok)throw new Error('モデル一覧の取得に失敗('+r.status+')'); const j=await r.json();
+  return (j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')); }
+function rankModel(n){ let s=0; if(/latest/.test(n))s+=100; if(/2\.5/.test(n))s+=40; else if(/2\.0/.test(n))s+=30; else if(/1\.5/.test(n))s+=20; if(/flash/.test(n))s+=15; if(/pro/.test(n))s+=5; if(/preview|exp|thinking/.test(n))s-=20; return s; }
+async function pickModel(){ let m=getModel(); if(m)return m; const ms=await listModels(); if(!ms.length)throw new Error('利用可能なモデルがありません');
+  ms.sort((a,b)=>rankModel(b.name)-rankModel(a.name)); m=ms[0].name.replace(/^models\//,''); setModel(m); return m; }
+async function geminiCall(parts){ const k=getKey(); if(!k)throw new Error('APIキー未設定（アプリ設定で入力してください）');
+  let m=await pickModel(); const body=JSON.stringify({contents:[{role:'user',parts}]});
+  const doFetch=mm=>fetch(GBASE+'/models/'+mm+':generateContent?key='+encodeURIComponent(k),{method:'POST',headers:{'Content-Type':'application/json'},body});
+  let r=await doFetch(m); if(r.status===404){ setModel(''); m=await pickModel(); r=await doFetch(m); }
+  if(!r.ok){ const t=await r.text().catch(()=>''); throw new Error('Gemini呼び出し失敗('+r.status+') '+t.slice(0,140)); }
+  const j=await r.json(); const c=j.candidates&&j.candidates[0]; const txt=c&&c.content&&c.content.parts&&c.content.parts.map(p=>p.text||'').join('');
+  if(!txt)throw new Error('応答が空でした（安全フィルタ等の可能性）'); return txt; }
+function geminiText(prompt){ return geminiCall([{text:prompt}]); }
+function geminiAudio(b64,mime,prompt){ return geminiCall([{text:prompt},{inlineData:{mimeType:mime,data:b64}}]); }
+async function testKey(){ try{ setModel(''); const m=await pickModel(); const t=await geminiText('「OK」とだけ返答してください。'); alert('接続OK ✅\nモデル: '+m+'\n応答: '+t.trim().slice(0,40)); }catch(e){ alert('接続に失敗 ❌\n'+e.message); } }
+/* AI診断 */
+async function runDiagnose(){ if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
+  const ids=curExportIds(); if(!ids.length){ alert('ラウンドを選択してください'); return; }
+  aiBusy=true; aiResult=''; render();
+  try{ aiResult=await geminiText('あなたはゴルフのコーチです。以下は「100yd以内のスコアメイク」と「パット」に特化した私のラウンド記録です。良い点と課題を簡潔に分析し、次ラウンドで実行すべき具体的アドバイスを3つ以内、日本語で示してください。\n\n'+buildExportText(ids)); }
+  catch(e){ aiResult='⚠ '+e.message; }
+  aiBusy=false; render(); }
+/* 録音→文字起こし */
+function blobB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+async function toggleRec(){ if(recState==='transcribing')return;
+  if(recState==='rec'){ if(mediaRec&&mediaRec.state!=='inactive')mediaRec.stop(); return; }
+  if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
+  try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); recChunks=[]; recHole=S.detailHole;
+    const mr=new MediaRecorder(stream); mediaRec=mr;
+    mr.ondataavailable=e=>{ if(e.data&&e.data.size)recChunks.push(e.data); };
+    mr.onstop=async ()=>{ stream.getTracks().forEach(t=>t.stop()); recState='transcribing'; render();
+      try{ const mime=(mr.mimeType||'audio/webm'); const blob=new Blob(recChunks,{type:mime}); const b64=await blobB64(blob);
+        const txt=await geminiAudio(b64, mime.split(';')[0], '以下の音声はゴルフのラウンド中の口頭メモです。日本語で正確に文字起こししてください。クラブ名（ドライバー/3W/5W/ユーティリティ/5I〜9I/PW/AW/SW/パター）、番手、ヤードや歩などの数字と単位、ライ・傾斜（つま先上がり・左足下がり・上り下り等）、ダフリ・トップ・引っ掛け・プッシュ等のミス用語を正しく。要点のみ簡潔に、前置きや解説は不要で本文だけ。');
+        const h=S.round.holes[recHole!=null?recHole:S.detailHole]; if(h){ h.note=(h.note?h.note+'\n':'')+txt.trim(); save(); }
+      }catch(e){ alert('文字起こしに失敗: '+e.message); }
+      recState='idle'; render(); };
+    mr.start(); recState='rec'; render();
+  }catch(e){ alert('マイクを使用できません: '+e.message); recState='idle'; render(); } }
 
 /* ============ モデル ============ */
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -430,6 +480,7 @@ function halfFloor(y){ if(y==null)return null; const h=y/2; return h>20?Math.flo
 /* ============ 状態 ============ */
 let S={ view:'home', round:null, half:0, detailHole:0, stage:'through' };
 let setup=null, appset=null, delConfirm=null, homeFilter={y:'',m:''};
+let aiBusy=false, aiResult='', recState='idle', mediaRec=null, recChunks=[], recHole=null;
 const $=id=>document.getElementById(id);
 function save(){ if(S.round){ DB.saveRound(S.round); flashSave(); } }
 function flashSave(){ const c=$('savechip'); c.classList.add('on'); clearTimeout(flashSave._t); flashSave._t=setTimeout(()=>c.classList.remove('on'),900); }
@@ -639,6 +690,11 @@ function renderAppSettings(){
       <button class="ghostbtn" onclick="restoreBackup('overwrite')">📤 復元：上書き（同IDを置換）</button>
       <button class="ghostbtn" onclick="exportCSV()">📄 スコアをCSVで書き出し（表計算用・復元不可）</button>
       <div class="sm muted">JSONは完全な復元用、CSVは閲覧用（復元不可）。機種変更・万一の備えに、こまめに書き出しを。</div></div>
+    <h2>Gemini（AI連携）</h2><div class="card">
+      <div class="taglab" style="margin:0 0 4px">APIキー（この端末のみ保存・バックアップに含めません）</div>
+      <input type="text" value="${esc(getKey())}" placeholder="Google AI Studio で取得したキーを貼り付け" oninput="setKey(this.value)" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div style="display:flex; gap:8px; margin-top:8px"><button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="testKey()">接続テスト</button></div>
+      <div class="sm muted" style="margin-top:8px; line-height:1.5">・AI診断・音声文字起こしに使用（オンライン時のみ）。<br>・<b>このアプリ専用のキー</b>を取得推奨（漏れても失効しやすく巻き添え防止）。<br>・GCPで「API制限：Generative Language のみ」＋「HTTPリファラ制限（${location.hostname||'公開ドメイン'}）」＋低クォータを推奨。<br>・モデルは自動選択（最新優先）。</div></div>
     <h2>バージョン情報</h2><div class="card">
       <div style="font-weight:800; font-size:17px">100yd Sync v${APP_VERSION}</div>
       <div class="sm muted" style="margin-top:2px">ビルド日：${APP_BUILD}</div>
@@ -812,7 +868,8 @@ function renderDetail(){
       <select class="ydsel" style="margin-left:0" onchange="setYardHole(this.value)">${yardOpts(h.yard)}</select></div>
     ${themeOf(h.half)?`<div class="themebar">🎯 ${esc(themeOf(h.half))}</div>`:''}
     <div class="card" style="margin-bottom:10px"><div class="taglab" style="margin:0 0 6px">ホールメモ（テキスト／音声）</div>
-      <textarea placeholder="このホールのメモ" oninput="setHoleNote(this.value)">${esc(h.note)}</textarea></div>
+      <textarea placeholder="このホールのメモ" oninput="setHoleNote(this.value)">${esc(h.note)}</textarea>
+      <button class="ghostbtn" style="margin-top:8px; ${recState==='rec'?'border-color:var(--bad); color:var(--bad)':''}" onclick="toggleRec()" ${recState==='transcribing'?'disabled':''}>${recState==='rec'?'● 録音中…（タップで停止）':recState==='transcribing'?'⏳ 文字起こし中…':'🎙 録音して文字起こし（Gemini）'}</button></div>
     <div class="stagetabs">${STAGES.map(tab).join('')}</div>
     ${stageContent()}`;
   $('topsub').textContent='ホール詳細'; $('topbtns').innerHTML='';
