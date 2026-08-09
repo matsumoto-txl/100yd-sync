@@ -204,7 +204,7 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.8.0';
+const APP_VERSION='2.8.1';
 const APP_BUILD='2026-08-10';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -871,9 +871,8 @@ function puttSel(h){ const v=h.puttScore; let o='<option value="">–</option>';
   for(let n=0;n<=9;n++)o+=`<option value="${n}" ${v===n?'selected':''}>${n}</option>`;
   return `<select class="psel" onchange="setPuttSc(${h.__i},this.value)">${o}</select>`; }
 function scoreCell(h,pid,owner){ const v=h.scores[pid], diff=v!=null?v-h.par:null;
-  const badge=(owner&&h.owner)?`<div class="cntbadge">${throughCount(h)}-${approachCount(h)}-${puttCount(h)}</div>`:'';
   const putt=owner?`<div class="puttrow"><span class="plab">パット</span>${puttSel(h)}</div>`:'';
-  return `<div class="pcellwrap ${owner?'me':''}">${scoreSel(h,pid)}<div class="sdiff ${cls(v,h.par)}">${diff!=null?(diff>=0?'+':'')+diff:''}</div>${putt}${badge}</div>`; }
+  return `<div class="pcellwrap ${owner?'me':''}">${scoreSel(h,pid)}<div class="sdiff ${cls(v,h.par)}">${diff!=null?(diff>=0?'+':'')+diff:''}</div>${putt}</div>`; }
 function setScore(i,pid,val){ const h=S.round.holes[i]; if(val==='')delete h.scores[pid]; else h.scores[pid]=+val; save(); renderCard(); }
 function setPuttSc(i,val){ const h=S.round.holes[i]; h.puttScore=(val===''?null:+val);
   /* 詳細画面でパット未入力なら、詳細のパット数(num)にも反映（既存の詳細パットは壊さない） */
@@ -886,7 +885,8 @@ function renderCard(){
   for(let i=0;i<9;i++){ const idx=h0+i, h=r.holes[idx]; h.__i=idx;
     const cells=ps.map(p=>scoreCell(h,p.id,!!p.owner)).join('');
     const mism=scoreMismatch(h);
-    rows+=`<div class="scrow"><div class="hcell ${hasDetailInput(h)?'':'todo'} ${mism?'warn':''}" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}${mism?' <span class="hwarn">！</span>':''}</span><span class="meta">Par ${h.par}・${h.yard}y</span><span class="go">›</span></div>${cells}</div>`; }
+    const det=h.owner?`<span class="cntbadge" style="align-self:flex-start">${throughCount(h)}-${approachCount(h)}-${puttCount(h)}</span>`:'';
+    rows+=`<div class="scrow"><div class="hcell ${hasDetailInput(h)?'':'todo'} ${mism?'warn':''}" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}${mism?' <span class="hwarn">！</span>':''}</span><span class="meta">Par ${h.par}・${h.yard}y</span>${det}<span class="go">›</span></div>${cells}</div>`; }
   const oid=ownerPid(r);
   const halfTot=(hh,pid)=>{ let s=0,ps2=0,any=false; for(let i=0;i<9;i++){const h=r.holes[hh*9+i], v=h.scores[pid]; if(v!=null){s+=v;ps2+=h.par;any=true;}} return any?{s,d:s-ps2}:null; };
   const halfDet=(hh)=>{ let s=0,a=0,p=0,pu=0; for(let i=0;i<9;i++){const h=r.holes[hh*9+i]; if(h.owner){s+=throughCount(h);a+=approachCount(h);p+=puttCount(h);} if(h.puttScore!=null)pu+=h.puttScore;} return {s,a,p,pu}; };
