@@ -204,11 +204,12 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.7.1';
+const APP_VERSION='2.8.0';
 const APP_BUILD='2026-08-10';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
+const SBAK='golf.v2.bak.settings'; /* 設定の自動バックアップ用キー（#1/#2） */
 function mergeTags(def,s){ if(!s)return def;
   return { through:{pre:(s.through&&s.through.pre)||def.through.pre, post:(s.through&&s.through.post)||def.through.post},
            approach:{pre:(s.approach&&s.approach.pre)||def.approach.pre, post:(s.approach&&s.approach.post)||def.approach.post},
@@ -225,7 +226,9 @@ const DB={
       clubs:(s.clubs&&s.clubs.length)?normClubs(s.clubs):def.clubs,
       tags:mergeTags(def.tags,s.tags),
       startClubs:Object.assign({},def.startClubs,s.startClubs||{}) }; },
-  saveSettings(s){ localStorage.setItem(NS+'settings',JSON.stringify(s)); },
+  saveSettings(s){ const j=JSON.stringify(s); localStorage.setItem(NS+'settings',j);
+    /* #1 設定の自動バックアップ（別キー・"settings"で始まらない名前にして万一の消失に巻き込まれにくく） */
+    try{ localStorage.setItem(SBAK,j); localStorage.setItem(SBAK+'.at', new Date().toISOString()); }catch(e){} },
   index(){ return JSON.parse(localStorage.getItem(NS+'rounds')||'[]'); },
   round(id){ return JSON.parse(localStorage.getItem(NS+'round.'+id)||'null'); },
   saveRound(r){ localStorage.setItem(NS+'round.'+r.roundId, JSON.stringify(r));
@@ -753,19 +756,30 @@ function commitSetup(){
 /* ============ アプリ設定 ============ */
 function openAppSettings(){ appset=DB.settings(); S.view='appset'; render(); }
 function saveAppSettings(){ DB.saveSettings(appset); goHome(); }
-function exportTags(){ const a=appset||DB.settings(); const obj={type:'100yd-sync-tags', version:APP_VERSION, tags:a.tags, clubs:a.clubs};
-  const s=JSON.stringify(obj,null,2); const el=$('tagio'); if(el){ el.value=s; el.focus(); el.select(); }
-  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(s).then(function(){ alert('タグ・番手設定をコピーしました（下の欄にも表示）。'); },function(){ alert('下の欄に書き出しました。手動でコピーしてください。'); }); }
-  else alert('下の欄に書き出しました。手動でコピーしてください。'); }
-function importTags(){ const el=$('tagio'); const raw=(el&&el.value||'').trim(); if(!raw){ alert('JSONを貼り付けてください'); return; }
-  let obj; try{ obj=JSON.parse(raw); }catch(e){ alert('JSONの解析に失敗しました。内容を確認してください。'); return; }
-  const src=obj.tags||obj; let added=0;
+function exportSettings(){ const a=appset||DB.settings();
+  const obj={type:'100yd-sync-settings', version:APP_VERSION, at:new Date().toISOString(),
+    nickname:a.nickname, teeDefault:a.teeDefault, units:a.units, logLevel:a.logLevel, startClubs:a.startClubs, clubs:a.clubs, tags:a.tags};
+  const s=JSON.stringify(obj,null,2); const el=$('setio'); if(el){ el.value=s; el.focus(); el.select(); }
+  try{ const blob=new Blob([s],{type:'application/json'}), url=URL.createObjectURL(blob), link=document.createElement('a');
+    link.href=url; link.download='100yd-sync-settings-'+todayStr()+'.json'; document.body.appendChild(link); link.click();
+    setTimeout(function(){ document.body.removeChild(link); URL.revokeObjectURL(url); },1000); }catch(e){}
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(s).catch(function(){});
+  alert('設定を書き出しました（ファイル保存＋下の欄にコピー）。'); }
+function importSettings(){ const el=$('setio'); const raw=(el&&el.value||'').trim(); if(!raw){ alert('JSONを貼り付けてください'); return; }
+  let o; try{ o=JSON.parse(raw); }catch(e){ alert('JSONの解析に失敗しました。内容を確認してください。'); return; }
+  let added=0; const updated=[];
+  const src=o.tags||(o.through?o:null); /* 新形式(o.tags) / 旧タグ形式(o.through...) 両対応 */
   const addTags=function(dst,arr){ (arr||[]).forEach(function(t){ if(typeof t==='string'&&t.trim()&&dst.indexOf(t)<0){ dst.push(t); added++; } }); };
-  if(src.through){ addTags(appset.tags.through.pre, src.through.pre); addTags(appset.tags.through.post, src.through.post); }
-  if(src.approach){ addTags(appset.tags.approach.pre, src.approach.pre); addTags(appset.tags.approach.post, src.approach.post); }
-  if(src.putt) addTags(appset.tags.putt, src.putt);
-  if(obj.clubs&&obj.clubs.length){ obj.clubs.forEach(function(c){ const nm=(c&&c.name||'').trim(); if(nm&&!appset.clubs.some(function(x){return x.name===nm;})){ appset.clubs.push({name:nm, dist:(c.dist!=null?+c.dist:baseDistOf(nm))}); added++; } }); }
-  render(); alert(added+'件を追記しました（不足分のみ・既存は変更なし）。内容を確認して「保存」を押してください。'); }
+  if(src){ if(src.through){ addTags(appset.tags.through.pre, src.through.pre); addTags(appset.tags.through.post, src.through.post); }
+    if(src.approach){ addTags(appset.tags.approach.pre, src.approach.pre); addTags(appset.tags.approach.post, src.approach.post); }
+    if(src.putt) addTags(appset.tags.putt, src.putt); }
+  if(o.clubs&&o.clubs.length){ o.clubs.forEach(function(c){ const nm=(c&&c.name||'').trim(); if(nm&&!appset.clubs.some(function(x){return x.name===nm;})){ appset.clubs.push({name:nm, dist:(c.dist!=null?+c.dist:baseDistOf(nm))}); added++; } }); }
+  if(typeof o.nickname==='string'){ appset.nickname=o.nickname; updated.push('ニックネーム'); }
+  if(o.teeDefault){ Object.assign(appset.teeDefault,o.teeDefault); updated.push('ティー距離'); }
+  if(o.units){ Object.assign(appset.units,o.units); updated.push('単位'); }
+  if(o.logLevel){ appset.logLevel=o.logLevel; }
+  if(o.startClubs){ Object.assign(appset.startClubs,o.startClubs); }
+  render(); alert('タグ・番手を'+added+'件追記'+(updated.length?('／'+updated.join('・')+'を更新'):'')+'しました。内容を確認して「保存」を押してください。'); }
 function setAsNick(v){ appset.nickname=v; }
 function setAsLv(v){ appset.logLevel=v; render(); }
 function setAsUnit(key,u){ appset.units[key]=u; render(); }
@@ -820,12 +834,12 @@ function renderAppSettings(){
       <button class="ghostbtn" onclick="addAsClub()">＋ 番手を追加</button>
       <div class="sm muted">飛距離は、ショットでクラブを選んだときの残りヤードの初期値になります。</div></div>
     <h2>タグ（並べ替え・追加・削除）</h2><div class="card" style="padding-top:2px">${TG.map(tagSection).join('')}</div>
-    <h2>タグ・番手設定の受け渡し（フィードバック用）</h2><div class="card">
+    <h2>設定のバックアップ／復元（ニックネーム・ティー・単位・番手・タグ）</h2><div class="card">
       <div style="display:flex; gap:8px; flex-wrap:wrap">
-        <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="exportTags()">📋 書き出す（コピー）</button>
-        <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="importTags()">📥 読み込む（不足分を追記）</button></div>
-      <textarea id="tagio" placeholder="ここに書き出したJSONが入ります／読み込むJSONを貼り付け" style="margin-top:8px; min-height:90px; font-family:monospace; font-size:12px" autocomplete="off" spellcheck="false"></textarea>
-      <div class="sm muted" style="margin-top:6px">タグと番手の設定だけを受け渡すJSONです。ラウンド後に育てたタグをコピーしてClaudeに渡す→返ってきたJSONを貼って「読み込む」で取り込めます（<b>不足分だけ追記・既存は消しません</b>）。取り込み後は「保存」を押してください。</div></div>
+        <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="exportSettings()">📋 書き出す（ファイル＋コピー）</button>
+        <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="importSettings()">📥 読み込む（復元）</button></div>
+      <textarea id="setio" placeholder="ここに書き出したJSONが入ります／復元するJSONを貼り付け" style="margin-top:8px; min-height:90px; font-family:monospace; font-size:12px" autocomplete="off" spellcheck="false"></textarea>
+      <div class="sm muted" style="margin-top:6px">設定（ニックネーム・ティー距離・単位・番手・タグ）だけをファイルで保存/復元します。<b>タグ・番手は不足分を追記（非破壊）</b>、その他は読み込んだ値に更新。取り込み後は「保存」を押してください。<br>※更新時は設定を自動でバックアップし、万一初期化されても起動時に自動復元します。機種変更・全消去に備え、時々このファイル書き出しも。</div></div>
     <h2>デフォルト記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${a.logLevel===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>
     <h2>バックアップ・復元</h2><div class="card grid2">
       <button class="ghostbtn" onclick="exportData()">📥 バックアップ書き出し（JSON・復元可）</button>
@@ -1045,7 +1059,15 @@ function render(){
   if(S.view!==_lastView || (S.view==='detail'&&S.detailHole!==_lastHole)) window.scrollTo(0,0);
   _lastView=S.view; _lastHole=S.detailHole;
 }
+/* #2 起動時の自動復旧：本体の設定が空なのにバックアップがあれば戻す（バックアップは温存＝非破壊） */
+function ensureSettingsBackup(){ try{
+    const main=localStorage.getItem(NS+'settings'), bak=localStorage.getItem(SBAK);
+    if((main===null||main==='') && bak){ localStorage.setItem(NS+'settings', bak); window.__settingsRestored=true; }
+    else if(main && !bak){ localStorage.setItem(SBAK, main); localStorage.setItem(SBAK+'.at', new Date().toISOString()); }
+  }catch(e){} }
+ensureSettingsBackup();
 render();
+if(window.__settingsRestored) setTimeout(function(){ alert('設定が初期値に戻っていたため、バックアップから自動復元しました。（ニックネーム・ティー距離・単位・番手・タグ）'); },150);
 
 /* ===== アプリ更新は「同意制」（サイレント更新をしない）===== */
 function showUpdate(reg){ window.__updateReg=reg; const b=document.getElementById('updatebar'); if(b)b.style.display='block'; }
