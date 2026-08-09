@@ -204,8 +204,8 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.7.0';
-const APP_BUILD='2026-08-09';
+const APP_VERSION='2.7.1';
+const APP_BUILD='2026-08-10';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -624,7 +624,13 @@ function touchOpts(cur){ if(cur==null)cur=0; const vals=[]; for(let v=-10;v<=10;
 function throughCount(h){ return h.owner?h.owner.through.shots.reduce((a,s)=>a+1+(s.pen||0),0):0; }
 function approachCount(h){ return h.owner?h.owner.approach.shots.reduce((a,s)=>a+1+(s.pen||0),0):0; }
 function puttOK(p){ return (p.okOn?1:0)+p.details.filter(d=>d.result==='OK').length; }
-function puttCount(h){ return h.owner?h.owner.putt.num+puttOK(h.owner.putt):0; }
+/* 詳細画面でパットを「実際に」入力したか（num単独はスコアカード由来の可能性があるので除外） */
+function detailPuttEntered(o){ return !!(o && (o.putt.okOn || o.putt.details.some(d=>d.result||d.exec||(d.tags&&d.tags.length)||d.dist!=null))); }
+/* パット数：詳細入力があればそれを、無ければスコアカードのパット数を採用 */
+function puttCount(h){ const o=h.owner;
+  if(detailPuttEntered(o)) return o.putt.num+puttOK(o.putt);
+  if(h.puttScore!=null) return h.puttScore;
+  return o?o.putt.num+puttOK(o.putt):0; }
 function puttSyncNum(p){ while(p.details.length<p.num)p.details.push(mkPutt()); if(p.details.length>p.num)p.details.length=p.num; }
 function ownerPid(r){ const o=r.players.find(p=>p.owner); return o?o.id:'p1'; }
 function selfTotal(r){ const pid=ownerPid(r); let s=0,any=false; r.holes.forEach(h=>{const v=h.scores[pid]; if(v!=null){s+=v;any=true;}}); return any?s:null; }
@@ -855,7 +861,10 @@ function scoreCell(h,pid,owner){ const v=h.scores[pid], diff=v!=null?v-h.par:nul
   const putt=owner?`<div class="puttrow"><span class="plab">パット</span>${puttSel(h)}</div>`:'';
   return `<div class="pcellwrap ${owner?'me':''}">${scoreSel(h,pid)}<div class="sdiff ${cls(v,h.par)}">${diff!=null?(diff>=0?'+':'')+diff:''}</div>${putt}${badge}</div>`; }
 function setScore(i,pid,val){ const h=S.round.holes[i]; if(val==='')delete h.scores[pid]; else h.scores[pid]=+val; save(); renderCard(); }
-function setPuttSc(i,val){ const h=S.round.holes[i]; h.puttScore=(val===''?null:+val); save(); }
+function setPuttSc(i,val){ const h=S.round.holes[i]; h.puttScore=(val===''?null:+val);
+  /* 詳細画面でパット未入力なら、詳細のパット数(num)にも反映（既存の詳細パットは壊さない） */
+  if(h.owner && !detailPuttEntered(h.owner)){ const p=h.owner.putt; p.num=(val===''?0:+val); puttSyncNum(p); }
+  save(); renderCard(); }
 function renderCard(){
   const r=S.round, ps=players(), h0=S.half*9;
   document.documentElement.style.setProperty('--np', ps.length);
