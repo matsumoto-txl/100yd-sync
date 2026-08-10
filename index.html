@@ -204,7 +204,7 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.8.1';
+const APP_VERSION='2.9.0';
 const APP_BUILD='2026-08-10';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -463,20 +463,46 @@ async function runDiagnose(){ if(!getKey()){ if(confirm('Gemini APIキーが未�
   aiBusy=false; render(); }
 /* 録音→文字起こし */
 function blobB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+const RECPROMPT='以下の音声はゴルフのラウンド中の口頭メモです。日本語で正確に文字起こししてください。クラブ名（ドライバー/3W/5W/ユーティリティ/5I〜9I/PW/AW/SW/パター）、番手、ヤードや歩などの数字と単位、ライ・傾斜（つま先上がり・左足下がり・上り下り等）、ダフリ・トップ・引っ掛け・プッシュ等のミス用語を正しく。要点のみ簡潔に、前置きや解説は不要で本文だけ。';
 async function toggleRec(){ if(recState==='transcribing')return;
   if(recState==='rec'){ if(mediaRec&&mediaRec.state!=='inactive')mediaRec.stop(); return; }
   if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
-  try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); recChunks=[]; recHole=S.detailHole;
+  try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); recChunks=[]; recHole=S.detailHole; recMode='single';
     const mr=new MediaRecorder(stream); mediaRec=mr;
     mr.ondataavailable=e=>{ if(e.data&&e.data.size)recChunks.push(e.data); };
     mr.onstop=async ()=>{ stream.getTracks().forEach(t=>t.stop()); recState='transcribing'; render();
       try{ const mime=(mr.mimeType||'audio/webm'); const blob=new Blob(recChunks,{type:mime}); const b64=await blobB64(blob);
-        const txt=await geminiAudio(b64, mime.split(';')[0], '以下の音声はゴルフのラウンド中の口頭メモです。日本語で正確に文字起こししてください。クラブ名（ドライバー/3W/5W/ユーティリティ/5I〜9I/PW/AW/SW/パター）、番手、ヤードや歩などの数字と単位、ライ・傾斜（つま先上がり・左足下がり・上り下り等）、ダフリ・トップ・引っ掛け・プッシュ等のミス用語を正しく。要点のみ簡潔に、前置きや解説は不要で本文だけ。');
+        const txt=await geminiAudio(b64, mime.split(';')[0], RECPROMPT);
         const h=S.round.holes[recHole!=null?recHole:S.detailHole]; if(h){ h.note=(h.note?h.note+'\n':'')+txt.trim(); save(); }
       }catch(e){ alert('文字起こしに失敗: '+e.message); }
       recState='idle'; render(); };
     mr.start(); recState='rec'; render();
   }catch(e){ alert('マイクを使用できません: '+e.message); recState='idle'; render(); } }
+/* ショットごと録音：クリップを貯めて最後にまとめて1回で文字起こし（メモリ一時保持） */
+async function toggleClipRec(){ if(recState==='transcribing')return;
+  if(recState==='rec'){ if(mediaRec&&mediaRec.state!=='inactive')mediaRec.stop(); return; }
+  if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
+  try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); recChunks=[]; recHole=S.detailHole; recMode='clip';
+    const mr=new MediaRecorder(stream); mediaRec=mr;
+    mr.ondataavailable=e=>{ if(e.data&&e.data.size)recChunks.push(e.data); };
+    mr.onstop=async ()=>{ stream.getTracks().forEach(t=>t.stop());
+      try{ const mime=(mr.mimeType||'audio/webm'); const blob=new Blob(recChunks,{type:mime}); const b64=await blobB64(blob);
+        recClips.push({b64:b64, mime:mime.split(';')[0]}); }catch(e){ alert('録音の保存に失敗: '+e.message); }
+      recState='idle'; render(); };
+    mr.start(); recState='rec'; render();
+  }catch(e){ alert('マイクを使用できません: '+e.message); recState='idle'; render(); } }
+function delLastClip(){ if(recState!=='idle'||!recClips.length)return; recClips.pop(); render(); }
+async function transcribeClips(){ if(recState!=='idle')return;
+  if(!recClips.length){ alert('録音クリップがありません'); return; }
+  if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
+  const hole=recHole!=null?recHole:S.detailHole, n=recClips.length; recState='transcribing'; render();
+  try{ const parts=[{text:'これは同じゴルフホールで、ショットごとに順番に録音した'+n+'個の音声メモです。各音声を順番に、それぞれ「'+'○打目: 内容'+'」の形式（1つ目=1打目、2つ目=2打目…）で改行区切りにして日本語で正確に文字起こししてください。'+RECPROMPT}];
+    recClips.forEach(function(c){ parts.push({inlineData:{mimeType:c.mime, data:c.b64}}); });
+    const txt=await geminiCall(parts);
+    const h=S.round.holes[hole]; if(h){ h.note=(h.note?h.note+'\n':'')+txt.trim(); save(); }
+    recClips=[];
+  }catch(e){ alert('文字起こしに失敗: '+e.message); }
+  recState='idle'; render(); }
 
 /* ============ AI②：メモ→1打ごとに構造化（確認プレビュー付き・非破壊） ============ */
 function mergeArr(dst,src){ (src||[]).forEach(t=>{ if(t&&dst.indexOf(t)<0)dst.push(t); }); }
@@ -601,6 +627,7 @@ function halfFloor(y){ if(y==null)return null; const h=y/2; return h>20?Math.flo
 let S={ view:'home', round:null, half:0, detailHole:0, stage:'through' };
 let setup=null, appset=null, delConfirm=null, homeFilter={y:'',m:''};
 let aiBusy=false, aiResult='', aiMode='ap', recState='idle', mediaRec=null, recChunks=[], recHole=null;
+let recMode='single', recClips=[]; /* recMode:'single'|'clip'／recClips:ショットごとの音声クリップ（メモリ一時保持） */
 let aiExtract=null, aiExBusy=false;
 const $=id=>document.getElementById(id);
 function save(){ if(S.round){ DB.saveRound(S.round); flashSave(); } }
@@ -916,7 +943,9 @@ function firstStage(){ const lv=S.round.logLevel; return lv>=3?'through':(lv>=2?
 function openDetail(i){ S.detailHole=i; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
   S.stage=firstStage(); S.view='detail'; render(); }
-function navDetail(d){ const n=S.detailHole+d; if(n<0||n>17)return; S.detailHole=n; const own=OWN();
+function clipsGuard(){ if(recState!=='idle'){ alert('録音中です。停止してから移動してください。'); return false; }
+  if(recClips.length){ if(!confirm('未処理の録音クリップが'+recClips.length+'件あります。移動すると破棄されます。よろしいですか？'))return false; recClips=[]; } return true; }
+function navDetail(d){ const n=S.detailHole+d; if(n<0||n>17)return; if(!clipsGuard())return; S.detailHole=n; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
   if(!availStages()[S.stage]) S.stage=firstStage(); render(); }
 function setStage(st){ if(!availStages()[st])return; S.stage=st; render(); }
@@ -1019,6 +1048,10 @@ function renderDetail(){
   const st={approach:appSt,putt:puttSt};
   const tab=([k,l])=> av[k]?`<div class="stab ${S.stage===k?'on':''}" onclick="setStage('${k}')">${l}<span class="cbadge ${st[k]||''}">${cnt[k]}${st[k]==='warn'?'！':''}</span></div>`:'';
   const hn=(S.round.course.halves[h.half]&&S.round.course.halves[h.half].name)||(h.half===0?'OUT':'IN');
+  const recSingleBusy=recState==='rec'&&recMode==='single', recClipBusy=recState==='rec'&&recMode==='clip', recBusy=recState!=='idle';
+  const singleBtn=`<button class="ghostbtn" style="margin-top:8px; ${recSingleBusy?'border-color:var(--bad); color:var(--bad)':''}" onclick="toggleRec()" ${(recState==='transcribing'||recClipBusy)?'disabled':''}>${recSingleBusy?'● 録音中…（タップで停止）':recState==='transcribing'?'⏳ 文字起こし中…':'🎙 単発：録音して文字起こし'}</button>`;
+  const clipBtn=`<button class="ghostbtn" style="margin-top:8px; ${recClipBusy?'border-color:var(--bad); color:var(--bad)':''}" onclick="toggleClipRec()" ${(recState==='transcribing'||recSingleBusy)?'disabled':''}>${recClipBusy?'● 録音中…（タップで停止）':'🎙 ショットごと：1打分を録音（追加）'}</button>`;
+  const clipCtrl=recClips.length?`<div class="frow" style="margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap"><span class="sm" style="font-weight:800">録音クリップ ${recClips.length}件</span><button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:8px 12px" onclick="delLastClip()" ${recBusy?'disabled':''}>直前を削除</button><button class="add" style="flex:1 1 120px" onclick="transcribeClips()" ${recBusy?'disabled':''}>📝 まとめて文字起こし（${recClips.length}件）</button></div><div class="sm muted" style="margin-top:4px">※ホールを移動/離脱すると未処理のクリップは破棄されます。</div>`:'';
   $('app').innerHTML=`
     <div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">自動保存中</div></div>
     <div class="titlebar">
@@ -1029,7 +1062,7 @@ function renderDetail(){
     ${themeOf(h.half)?`<div class="themebar">🎯 ${esc(themeOf(h.half))}</div>`:''}
     <div class="card" style="margin-bottom:10px"><div class="taglab" style="margin:0 0 6px">ホールメモ（テキスト／音声）</div>
       <textarea placeholder="このホールのメモ" oninput="setHoleNote(this.value)">${esc(h.note)}</textarea>
-      <button class="ghostbtn" style="margin-top:8px; ${recState==='rec'?'border-color:var(--bad); color:var(--bad)':''}" onclick="toggleRec()" ${recState==='transcribing'?'disabled':''}>${recState==='rec'?'● 録音中…（タップで停止）':recState==='transcribing'?'⏳ 文字起こし中…':'🎙 録音して文字起こし（Gemini）'}</button>
+      ${singleBtn}${clipBtn}${clipCtrl}
       <button class="ghostbtn" style="margin-top:8px" onclick="aiExtractStart()" ${recState!=='idle'?'disabled':''}>🤖 メモから打を解析（AI・確認あり）</button></div>
     <div class="stagetabs">${STAGES.map(tab).join('')}</div>
     ${stageContent()}`;
@@ -1041,7 +1074,7 @@ function renderDetail(){
     const startClub = S.stage==='approach'?sc.approach:(idx===0?sc.first:sc.second);
     const se=el.querySelector('[data-club="'+startClub+'"]'); if(se) el.scrollLeft = se.offsetLeft - 4; });
 }
-function backToCard(){ S.view='card'; render(); }
+function backToCard(){ if(!clipsGuard())return; S.view='card'; render(); }
 
 /* ============ ルート ============ */
 let _lastView=null, _lastHole=null;
