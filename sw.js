@@ -3,7 +3,7 @@
         新バージョンは waiting のまま待機し、ページ側の「更新する」操作（SKIP_WAITING メッセージ）で初めて適用する。
         localhost/127.0.0.1（開発）は「ネットワーク優先」＝編集が即反映。
    ★リリースごとに CACHE の版数を上げること（新SWのinstallを発火させるため）。 */
-const CACHE = '100yd-sync-2.9.0';
+const CACHE = '100yd-sync-2.10.0';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 const DEV = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
 

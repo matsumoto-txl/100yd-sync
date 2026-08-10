@@ -204,7 +204,7 @@ const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','ス�
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.9.0';
+const APP_VERSION='2.10.0';
 const APP_BUILD='2026-08-10';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -236,7 +236,8 @@ const DB={
     idx.unshift({id:r.roundId, date:r.date, course:(r.course&&r.course.name)||'コース未設定'});
     localStorage.setItem(NS+'rounds', JSON.stringify(idx)); },
   delRound(id){ localStorage.removeItem(NS+'round.'+id);
-    localStorage.setItem(NS+'rounds', JSON.stringify(DB.index().filter(x=>x.id!==id))); }
+    localStorage.setItem(NS+'rounds', JSON.stringify(DB.index().filter(x=>x.id!==id)));
+    try{ IDB.delPrefix(id+':').catch(function(){}); }catch(e){} }
 };
 
 /* ============ 旧データ（golf.*）復元 ============ */
@@ -478,7 +479,24 @@ async function toggleRec(){ if(recState==='transcribing')return;
       recState='idle'; render(); };
     mr.start(); recState='rec'; render();
   }catch(e){ alert('マイクを使用できません: '+e.message); recState='idle'; render(); } }
-/* ショットごと録音：クリップを貯めて最後にまとめて1回で文字起こし（メモリ一時保持） */
+/* ショットごと録音：クリップを IndexedDB に永続化（離脱・再読み込みでも保持）→まとめて1回で文字起こし */
+const IDB={ _db:null,
+  open(){ return new Promise(function(res,rej){ if(IDB._db)return res(IDB._db);
+    const rq=indexedDB.open('golf100yd',1);
+    rq.onupgradeneeded=function(e){ const db=e.target.result; if(!db.objectStoreNames.contains('clips')){ const os=db.createObjectStore('clips',{keyPath:'id',autoIncrement:true}); os.createIndex('rk','rk',{unique:false}); } };
+    rq.onsuccess=function(e){ IDB._db=e.target.result; res(IDB._db); }; rq.onerror=function(){ rej(rq.error); }; }); },
+  _os(mode){ return IDB.open().then(function(db){ return db.transaction('clips',mode).objectStore('clips'); }); },
+  add(rec){ return IDB._os('readwrite').then(function(os){ return new Promise(function(res,rej){ const r=os.add(rec); r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }); },
+  byRk(rk){ return IDB._os('readonly').then(function(os){ return new Promise(function(res,rej){ const r=os.index('rk').getAll(rk); r.onsuccess=function(){ res(r.result||[]); }; r.onerror=function(){ rej(r.error); }; }); }); },
+  all(){ return IDB._os('readonly').then(function(os){ return new Promise(function(res,rej){ const r=os.getAll(); r.onsuccess=function(){ res(r.result||[]); }; r.onerror=function(){ rej(r.error); }; }); }); },
+  del(id){ return IDB._os('readwrite').then(function(os){ return new Promise(function(res,rej){ const r=os.delete(id); r.onsuccess=function(){ res(); }; r.onerror=function(){ rej(r.error); }; }); }); },
+  delRk(rk){ return IDB.byRk(rk).then(function(list){ return Promise.all(list.map(function(x){ return IDB.del(x.id); })); }); },
+  delPrefix(pre){ return IDB.all().then(function(list){ return Promise.all(list.filter(function(x){ return String(x.rk||'').indexOf(pre)===0; }).map(function(x){ return IDB.del(x.id); })); }); }
+};
+function clipRK(hole){ return (S.round&&S.round.roundId||'')+':'+hole; }
+function loadCurClips(){ if(!S.round){ curClips=[]; return; } const rk=clipRK(S.detailHole);
+  IDB.byRk(rk).then(function(list){ curClips=list.map(function(x){ return {id:x.id,b64:x.b64,mime:x.mime}; }); if(S.view==='detail')render(); }).catch(function(){}); }
+function refreshClipCounts(){ IDB.all().then(function(list){ const m={}; list.forEach(function(x){ m[x.rk]=(m[x.rk]||0)+1; }); clipCounts=m; render(); }).catch(function(){}); }
 async function toggleClipRec(){ if(recState==='transcribing')return;
   if(recState==='rec'){ if(mediaRec&&mediaRec.state!=='inactive')mediaRec.stop(); return; }
   if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
@@ -486,21 +504,25 @@ async function toggleClipRec(){ if(recState==='transcribing')return;
     const mr=new MediaRecorder(stream); mediaRec=mr;
     mr.ondataavailable=e=>{ if(e.data&&e.data.size)recChunks.push(e.data); };
     mr.onstop=async ()=>{ stream.getTracks().forEach(t=>t.stop());
-      try{ const mime=(mr.mimeType||'audio/webm'); const blob=new Blob(recChunks,{type:mime}); const b64=await blobB64(blob);
-        recClips.push({b64:b64, mime:mime.split(';')[0]}); }catch(e){ alert('録音の保存に失敗: '+e.message); }
+      try{ const mime=(mr.mimeType||'audio/webm').split(';')[0]; const blob=new Blob(recChunks,{type:mr.mimeType||'audio/webm'}); const b64=await blobB64(blob);
+        const rk=clipRK(recHole); const id=await IDB.add({rk:rk, b64:b64, mime:mime, at:Date.now()});
+        if(recHole===S.detailHole) curClips.push({id:id, b64:b64, mime:mime});
+        clipCounts[rk]=(clipCounts[rk]||0)+1;
+      }catch(e){ alert('録音の保存に失敗: '+e.message); }
       recState='idle'; render(); };
     mr.start(); recState='rec'; render();
   }catch(e){ alert('マイクを使用できません: '+e.message); recState='idle'; render(); } }
-function delLastClip(){ if(recState!=='idle'||!recClips.length)return; recClips.pop(); render(); }
+function delLastClip(){ if(recState!=='idle'||!curClips.length)return; const c=curClips.pop(); const rk=clipRK(S.detailHole);
+  clipCounts[rk]=Math.max(0,(clipCounts[rk]||1)-1); render(); IDB.del(c.id).catch(function(){}); }
 async function transcribeClips(){ if(recState!=='idle')return;
-  if(!recClips.length){ alert('録音クリップがありません'); return; }
+  if(!curClips.length){ alert('録音クリップがありません'); return; }
   if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？'))openAppSettings(); return; }
-  const hole=recHole!=null?recHole:S.detailHole, n=recClips.length; recState='transcribing'; render();
+  const hole=S.detailHole, rk=clipRK(hole), clips=curClips.slice(), n=clips.length; recState='transcribing'; render();
   try{ const parts=[{text:'これは同じゴルフホールで、ショットごとに順番に録音した'+n+'個の音声メモです。各音声を順番に、それぞれ「'+'○打目: 内容'+'」の形式（1つ目=1打目、2つ目=2打目…）で改行区切りにして日本語で正確に文字起こししてください。'+RECPROMPT}];
-    recClips.forEach(function(c){ parts.push({inlineData:{mimeType:c.mime, data:c.b64}}); });
+    clips.forEach(function(c){ parts.push({inlineData:{mimeType:c.mime, data:c.b64}}); });
     const txt=await geminiCall(parts);
     const h=S.round.holes[hole]; if(h){ h.note=(h.note?h.note+'\n':'')+txt.trim(); save(); }
-    recClips=[];
+    await IDB.delRk(rk); curClips=[]; clipCounts[rk]=0;
   }catch(e){ alert('文字起こしに失敗: '+e.message); }
   recState='idle'; render(); }
 
@@ -627,7 +649,7 @@ function halfFloor(y){ if(y==null)return null; const h=y/2; return h>20?Math.flo
 let S={ view:'home', round:null, half:0, detailHole:0, stage:'through' };
 let setup=null, appset=null, delConfirm=null, homeFilter={y:'',m:''};
 let aiBusy=false, aiResult='', aiMode='ap', recState='idle', mediaRec=null, recChunks=[], recHole=null;
-let recMode='single', recClips=[]; /* recMode:'single'|'clip'／recClips:ショットごとの音声クリップ（メモリ一時保持） */
+let recMode='single', curClips=[], clipCounts={}; /* recMode:'single'|'clip'／curClips:現在ホールのクリップ[{id,b64,mime}]／clipCounts:rk→件数（バッジ用） */
 let aiExtract=null, aiExBusy=false;
 const $=id=>document.getElementById(id);
 function save(){ if(S.round){ DB.saveRound(S.round); flashSave(); } }
@@ -714,7 +736,7 @@ function renderHome(){
     <p class="sm muted center" style="margin-top:22px; padding-bottom:6px">100yd Sync <b>v${APP_VERSION}</b> ・ ${APP_BUILD}</p>`;
   $('topsub').textContent='ホーム'; $('topbtns').innerHTML='';
 }
-function resume(id){ const r=DB.round(id); if(!r)return; S.round=r; S.half=0; S.view='card'; render(); }
+function resume(id){ const r=DB.round(id); if(!r)return; S.round=r; S.half=0; S.view='card'; render(); refreshClipCounts(); }
 function askDel(id){ delConfirm=id; render(); }
 function cancelDel(){ delConfirm=null; render(); }
 function doDel(id){ DB.delRound(id); delConfirm=null; render(); }
@@ -913,7 +935,8 @@ function renderCard(){
     const cells=ps.map(p=>scoreCell(h,p.id,!!p.owner)).join('');
     const mism=scoreMismatch(h);
     const det=h.owner?`<span class="cntbadge" style="align-self:flex-start">${throughCount(h)}-${approachCount(h)}-${puttCount(h)}</span>`:'';
-    rows+=`<div class="scrow"><div class="hcell ${hasDetailInput(h)?'':'todo'} ${mism?'warn':''}" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}${mism?' <span class="hwarn">！</span>':''}</span><span class="meta">Par ${h.par}・${h.yard}y</span>${det}<span class="go">›</span></div>${cells}</div>`; }
+    const clipN=clipCounts[clipRK(idx)]||0; const mic=clipN?`<span class="cntbadge" style="align-self:flex-start; color:var(--bad); border-color:var(--bad)">🎙${clipN} 未処理</span>`:'';
+    rows+=`<div class="scrow"><div class="hcell ${hasDetailInput(h)?'':'todo'} ${mism?'warn':''}" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}${mism?' <span class="hwarn">！</span>':''}</span><span class="meta">Par ${h.par}・${h.yard}y</span>${det}${mic}<span class="go">›</span></div>${cells}</div>`; }
   const oid=ownerPid(r);
   const halfTot=(hh,pid)=>{ let s=0,ps2=0,any=false; for(let i=0;i<9;i++){const h=r.holes[hh*9+i], v=h.scores[pid]; if(v!=null){s+=v;ps2+=h.par;any=true;}} return any?{s,d:s-ps2}:null; };
   const halfDet=(hh)=>{ let s=0,a=0,p=0,pu=0; for(let i=0;i<9;i++){const h=r.holes[hh*9+i]; if(h.owner){s+=throughCount(h);a+=approachCount(h);p+=puttCount(h);} if(h.puttScore!=null)pu+=h.puttScore;} return {s,a,p,pu}; };
@@ -942,12 +965,11 @@ function availStages(){ const lv=S.round.logLevel; return { through:lv>=3, appro
 function firstStage(){ const lv=S.round.logLevel; return lv>=3?'through':(lv>=2?'approach':'putt'); }
 function openDetail(i){ S.detailHole=i; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
-  S.stage=firstStage(); S.view='detail'; render(); }
-function clipsGuard(){ if(recState!=='idle'){ alert('録音中です。停止してから移動してください。'); return false; }
-  if(recClips.length){ if(!confirm('未処理の録音クリップが'+recClips.length+'件あります。移動すると破棄されます。よろしいですか？'))return false; recClips=[]; } return true; }
+  S.stage=firstStage(); S.view='detail'; curClips=[]; render(); loadCurClips(); }
+function clipsGuard(){ if(recState!=='idle'){ alert('録音中／処理中です。停止・完了してから移動してください。'); return false; } return true; }
 function navDetail(d){ const n=S.detailHole+d; if(n<0||n>17)return; if(!clipsGuard())return; S.detailHole=n; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
-  if(!availStages()[S.stage]) S.stage=firstStage(); render(); }
+  if(!availStages()[S.stage]) S.stage=firstStage(); curClips=[]; render(); loadCurClips(); }
 function setStage(st){ if(!availStages()[st])return; S.stage=st; render(); }
 function stgObj(){ return OWN()[S.stage]; }
 function shots(){ return stgObj().shots; }
@@ -1051,7 +1073,7 @@ function renderDetail(){
   const recSingleBusy=recState==='rec'&&recMode==='single', recClipBusy=recState==='rec'&&recMode==='clip', recBusy=recState!=='idle';
   const singleBtn=`<button class="ghostbtn" style="margin-top:8px; ${recSingleBusy?'border-color:var(--bad); color:var(--bad)':''}" onclick="toggleRec()" ${(recState==='transcribing'||recClipBusy)?'disabled':''}>${recSingleBusy?'● 録音中…（タップで停止）':recState==='transcribing'?'⏳ 文字起こし中…':'🎙 単発：録音して文字起こし'}</button>`;
   const clipBtn=`<button class="ghostbtn" style="margin-top:8px; ${recClipBusy?'border-color:var(--bad); color:var(--bad)':''}" onclick="toggleClipRec()" ${(recState==='transcribing'||recSingleBusy)?'disabled':''}>${recClipBusy?'● 録音中…（タップで停止）':'🎙 ショットごと：1打分を録音（追加）'}</button>`;
-  const clipCtrl=recClips.length?`<div class="frow" style="margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap"><span class="sm" style="font-weight:800">録音クリップ ${recClips.length}件</span><button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:8px 12px" onclick="delLastClip()" ${recBusy?'disabled':''}>直前を削除</button><button class="add" style="flex:1 1 120px" onclick="transcribeClips()" ${recBusy?'disabled':''}>📝 まとめて文字起こし（${recClips.length}件）</button></div><div class="sm muted" style="margin-top:4px">※ホールを移動/離脱すると未処理のクリップは破棄されます。</div>`:'';
+  const clipCtrl=curClips.length?`<div class="frow" style="margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap"><span class="sm" style="font-weight:800">録音クリップ ${curClips.length}件</span><button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:8px 12px" onclick="delLastClip()" ${recBusy?'disabled':''}>直前を削除</button><button class="add" style="flex:1 1 120px" onclick="transcribeClips()" ${recBusy?'disabled':''}>📝 まとめて文字起こし（${curClips.length}件）</button></div><div class="sm muted" style="margin-top:4px">※端末に保存されます（ホール移動・アプリ再起動でも保持）。文字起こし成功で自動削除。</div>`:'';
   $('app').innerHTML=`
     <div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">自動保存中</div></div>
     <div class="titlebar">
@@ -1074,7 +1096,7 @@ function renderDetail(){
     const startClub = S.stage==='approach'?sc.approach:(idx===0?sc.first:sc.second);
     const se=el.querySelector('[data-club="'+startClub+'"]'); if(se) el.scrollLeft = se.offsetLeft - 4; });
 }
-function backToCard(){ if(!clipsGuard())return; S.view='card'; render(); }
+function backToCard(){ if(!clipsGuard())return; S.view='card'; render(); refreshClipCounts(); }
 
 /* ============ ルート ============ */
 let _lastView=null, _lastHole=null;
