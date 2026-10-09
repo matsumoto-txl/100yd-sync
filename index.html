@@ -49,7 +49,8 @@
 
   /* スコアカード */
   .sc{ border:1px solid var(--border); border-radius:14px; overflow:hidden; }
-  .scrow{ display:grid; grid-template-columns:84px repeat(var(--np,4),1fr); align-items:stretch; }
+  .scrow{ display:grid; grid-template-columns:84px 78px repeat(var(--np,4),1fr); align-items:stretch; }
+  .clubcell{ display:flex; flex-direction:column; justify-content:center; gap:2px; padding:6px 5px; margin:6px 2px; font-size:11px; line-height:1.3; word-break:break-all; cursor:pointer; background:var(--surface3); border:1px solid var(--border); border-radius:10px; }
   .scrow + .scrow{ border-top:1px solid var(--border); }
   .schead{ background:var(--surface2); color:var(--muted); font-size:12px; font-weight:700; }
   .schead .cell{ padding:9px 4px; text-align:center; }
@@ -75,7 +76,7 @@
   .puttrow{ display:flex; align-items:center; gap:4px; } .puttrow .plab{ font-size:10px; color:var(--muted); }
   .psel{ padding:5px 20px 5px 8px; font-size:13px; }
   .cntbadge{ font-size:11px; font-weight:800; color:var(--muted); background:var(--surface3); border:1px solid var(--border); border-radius:7px; padding:2px 6px; font-variant-numeric:tabular-nums; }
-  .totrow{ display:grid; grid-template-columns:84px repeat(var(--np,4),1fr); background:var(--surface2); border-top:2px solid var(--border); }
+  .totrow{ display:grid; grid-template-columns:84px 78px repeat(var(--np,4),1fr); background:var(--surface2); border-top:2px solid var(--border); }
   .totrow.sub{ background:var(--surface); border-top-width:1px; } .totrow.grand{ background:var(--surface3); }
   .totrow .cell{ padding:11px 2px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; }
   .totrow .tlab{ text-align:left; padding-left:8px; color:var(--muted); }
@@ -202,10 +203,27 @@ const ARESULT=[['in','in'],['ok','OK'],['meh','イマイチ'],['ng','NG']];
 const CINTENT=[['safe','安全'],['normal','普通'],['attack','勝負'],['reckless','無謀']];
 const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','スライス','まっすぐ'];
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
-const STAGES=[['through','ショット'],['approach','アプローチ'],['putt','パット']];
+const STAGES=[['through','ショット'],['putt','パット']];
+/* パット ビジュアル入力の同心ゾーン（止まった位置13択）。描画順＝配列順（後ほど上に重なる） */
+const PZG='#F1EFE8',PZGs='#D3D1C7',PZK='#E1F5EE',PZKs='#5DCAA5',PZO='#FAECE7',PZOs='#D85A30';
+const PUTZONES=[
+  {id:'大オーバー',label:'大オーバー',band:true,x:30,y:20,w:240,h:36,cx:150,cy:38,fill:PZO,stroke:PZOs},
+  {id:'OUT左奥',label:'',x:30,y:56,w:120,h:124,cx:68,cy:100,fill:PZG,stroke:PZGs},
+  {id:'OUT右奥',label:'',x:150,y:56,w:120,h:124,cx:232,cy:100,fill:PZG,stroke:PZGs},
+  {id:'OUT左手前',label:'',x:30,y:180,w:120,h:124,cx:68,cy:260,fill:PZG,stroke:PZGs},
+  {id:'OUT右手前',label:'',x:150,y:180,w:120,h:124,cx:232,cy:260,fill:PZG,stroke:PZGs},
+  {id:'OUT線上奥',label:'',x:128,y:56,w:44,h:74,cx:150,cy:92,fill:PZG,stroke:PZGs},
+  {id:'OUT線上手前',label:'',x:128,y:230,w:44,h:74,cx:150,cy:268,fill:PZG,stroke:PZGs},
+  {id:'OK左奥',label:'OK',x:90,y:130,w:60,h:50,cx:118,cy:158,fill:PZK,stroke:PZKs},
+  {id:'OK右奥',label:'OK',x:150,y:130,w:60,h:50,cx:182,cy:158,fill:PZK,stroke:PZKs},
+  {id:'OK左手前',label:'OK',x:90,y:180,w:60,h:50,cx:118,cy:206,fill:PZK,stroke:PZKs},
+  {id:'OK右手前',label:'OK',x:150,y:180,w:60,h:50,cx:182,cy:206,fill:PZK,stroke:PZKs},
+  {id:'大ショート',label:'大ショート',band:true,x:30,y:304,w:240,h:36,cx:150,cy:322,fill:PZO,stroke:PZOs},
+  {id:'IN',label:'in',circle:true,cx:150,cy:180,r:20,fill:'#9FE1CB',stroke:'#0F6E56'}
+];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.10.0';
-const APP_BUILD='2026-08-10';
+const APP_VERSION='2.12.0';
+const APP_BUILD='2026-10-10';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -636,11 +654,11 @@ function aiApply(){ const ax=aiExtract; if(!ax||!ax.rows)return;
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function parOn(par){ return Math.max(1, par-2); }
 function mkShot(){ return {club:null,pen:0,pre:[],post:[],note:'',yard:null}; }
-function mkPutt(){ return {dist:null,effDist:null,slopeV:null,slopeH:null,result:null,exec:null,touch:0,tags:[]}; }
+function mkPutt(){ return {dist:null,effDist:null,slopeV:null,slopeH:null,result:null,exec:null,touch:0,tags:[],zone:null,slope:0,line:null}; }
 function mkOwner(par){ return {
   through:{ shots:[...Array(parOn(par))].map(mkShot), eval:{result:null,intent:null}, res:null, remain:null },
   approach:{ shots:[], eval:{result:null,intent:null} },
-  putt:{ okOn:false, num:0, details:[] } }; }
+  putt:{ okOn:false, chipIn:false, num:0, details:[] } }; }
 function playersOf(names){ return names.map((n,i)=>({id:'p'+(i+1),name:(n||'').trim(),owner:i===0})).filter((p,i)=>i===0||p.name); }
 function clubDist(name){ const c=DB.settings().clubs.find(c=>c.name===name); return c?c.dist:null; }
 function halfFloor(y){ if(y==null)return null; const h=y/2; return h>20?Math.floor(h/5)*5:Math.floor(h); }
@@ -650,6 +668,8 @@ let S={ view:'home', round:null, half:0, detailHole:0, stage:'through' };
 let setup=null, appset=null, delConfirm=null, homeFilter={y:'',m:''};
 let aiBusy=false, aiResult='', aiMode='ap', recState='idle', mediaRec=null, recChunks=[], recHole=null;
 let recMode='single', curClips=[], clipCounts={}; /* recMode:'single'|'clip'／curClips:現在ホールのクリップ[{id,b64,mime}]／clipCounts:rk→件数（バッジ用） */
+let putInput={dist:'',slope:0,zone:null,hx:null,hy:null}; /* パット ビジュアル入力の作業中1打 */
+function resetPutInput(){ putInput={dist:'',slope:0,zone:null,hx:null,hy:null}; }
 let aiExtract=null, aiExBusy=false;
 const $=id=>document.getElementById(id);
 function save(){ if(S.round){ DB.saveRound(S.round); flashSave(); } }
@@ -673,14 +693,26 @@ function touchOpts(cur){ if(cur==null)cur=0; const vals=[]; for(let v=-10;v<=10;
   return vals.map(v=>`<option value="${v}" ${cur===v?'selected':''}>${v>0?'+':''}${v}</option>`).join(''); }
 
 /* ============ カウント ============ */
-function throughCount(h){ return h.owner?h.owner.through.shots.reduce((a,s)=>a+1+(s.pen||0),0):0; }
-function approachCount(h){ return h.owner?h.owner.approach.shots.reduce((a,s)=>a+1+(s.pen||0),0):0; }
+/* アプローチ自動判定：残り100y以下の打をアプローチとみなす（旧データ=approach.shots があればそれを優先） */
+function isApproachShot(s){ return s.yard!=null && s.yard<=100; }
+function throughCount(h){ if(!h.owner)return 0; const o=h.owner;
+  if(o.approach.shots.length) return o.through.shots.reduce((a,s)=>a+1+(s.pen||0),0);
+  return o.through.shots.filter(s=>!isApproachShot(s)).reduce((a,s)=>a+1+(s.pen||0),0); }
+function approachCount(h){ if(!h.owner)return 0; const o=h.owner;
+  if(o.approach.shots.length) return o.approach.shots.reduce((a,s)=>a+1+(s.pen||0),0);
+  return o.through.shots.filter(isApproachShot).reduce((a,s)=>a+1+(s.pen||0),0); }
+/* スコアカードの番手列：1打=1行で番手を縦に並べ、ペナルティはその打の横に表示 */
+function shotClubLines(h){ if(!h.owner)return []; const o=h.owner;
+  const arr=o.through.shots.concat((o.approach&&o.approach.shots)||[]);
+  const lines=[]; arr.forEach(s=>{ if(s.club||s.pen) lines.push({club:s.club||'', pen:s.pen||0}); });
+  return lines; }
 function puttOK(p){ return (p.okOn?1:0)+p.details.filter(d=>d.result==='OK').length; }
+function puttIsNew(p){ return !!(p && p.details && p.details.some(function(d){return d.zone;})); }
 /* 詳細画面でパットを「実際に」入力したか（num単独はスコアカード由来の可能性があるので除外） */
-function detailPuttEntered(o){ return !!(o && (o.putt.okOn || o.putt.details.some(d=>d.result||d.exec||(d.tags&&d.tags.length)||d.dist!=null))); }
-/* パット数：詳細入力があればそれを、無ければスコアカードのパット数を採用 */
+function detailPuttEntered(o){ return !!(o && (o.putt.okOn || o.putt.chipIn || o.putt.details.some(d=>d.zone||d.result||d.exec||(d.tags&&d.tags.length)||d.dist!=null))); }
+/* パット数：新形式(ゾーン)は1件=1打。旧形式は num+OK。詳細が無ければスコアカードのパット数を採用 */
 function puttCount(h){ const o=h.owner;
-  if(detailPuttEntered(o)) return o.putt.num+puttOK(o.putt);
+  if(detailPuttEntered(o)){ return puttIsNew(o.putt) ? o.putt.details.length : (o.putt.num+puttOK(o.putt)); }
   if(h.puttScore!=null) return h.puttScore;
   return o?o.putt.num+puttOK(o.putt):0; }
 function puttSyncNum(p){ while(p.details.length<p.num)p.details.push(mkPutt()); if(p.details.length>p.num)p.details.length=p.num; }
@@ -936,7 +968,8 @@ function renderCard(){
     const mism=scoreMismatch(h);
     const det=h.owner?`<span class="cntbadge" style="align-self:flex-start">${throughCount(h)}-${approachCount(h)}-${puttCount(h)}</span>`:'';
     const clipN=clipCounts[clipRK(idx)]||0; const mic=clipN?`<span class="cntbadge" style="align-self:flex-start; color:var(--bad); border-color:var(--bad)">🎙${clipN} 未処理</span>`:'';
-    rows+=`<div class="scrow"><div class="hcell ${hasDetailInput(h)?'':'todo'} ${mism?'warn':''}" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}${mism?' <span class="hwarn">！</span>':''}</span><span class="meta">Par ${h.par}・${h.yard}y</span>${det}${mic}<span class="go">›</span></div>${cells}</div>`; }
+    const lines=shotClubLines(h); const clubCell=`<div class="clubcell" onclick="openDetail(${idx})">${lines.length?lines.map(l=>`<div>${l.club?esc(l.club):'<span class="muted">·</span>'}${l.pen?` <span style="color:var(--bad); font-weight:800">+${l.pen}</span>`:''}</div>`).join(''):'<span class="muted">－</span>'}</div>`;
+    rows+=`<div class="scrow"><div class="hcell ${hasDetailInput(h)?'':'todo'} ${mism?'warn':''}" onclick="openDetail(${idx})"><span class="no tnum">${h.holeNo}${mism?' <span class="hwarn">！</span>':''}</span><span class="meta">Par ${h.par}・${h.yard}y</span>${det}${mic}<span class="go">›</span></div>${clubCell}${cells}</div>`; }
   const oid=ownerPid(r);
   const halfTot=(hh,pid)=>{ let s=0,ps2=0,any=false; for(let i=0;i<9;i++){const h=r.holes[hh*9+i], v=h.scores[pid]; if(v!=null){s+=v;ps2+=h.par;any=true;}} return any?{s,d:s-ps2}:null; };
   const halfDet=(hh)=>{ let s=0,a=0,p=0,pu=0; for(let i=0;i<9;i++){const h=r.holes[hh*9+i]; if(h.owner){s+=throughCount(h);a+=approachCount(h);p+=puttCount(h);} if(h.puttScore!=null)pu+=h.puttScore;} return {s,a,p,pu}; };
@@ -944,7 +977,7 @@ function renderCard(){
   const cellTot=t=> t?`${t.s} <span class="ou">(${t.d>=0?'+':''}${t.d})</span>`:'–';
   const detLine=d=> (d && (d.s+d.a+d.p>0||d.pu>0))?`<div class="tdet">詳細 ${d.s}-${d.a}-${d.p}<br>パット計 ${d.pu}</div>`:'';
   const grand=pid=>{ const a=halfTot(0,pid),b=halfTot(1,pid); if(!a&&!b)return null; return {s:(a?a.s:0)+(b?b.s:0), d:(a?a.d:0)+(b?b.d:0)}; };
-  const totRow=(lab,fn,detFn,cl)=>`<div class="totrow ${cl||''}"><div class="cell tlab">${lab}</div>${ps.map(p=>`<div class="cell tnum">${cellTot(fn(p.id))}${(p.id===oid&&detFn)?detLine(detFn()):''}</div>`).join('')}</div>`;
+  const totRow=(lab,fn,detFn,cl)=>`<div class="totrow ${cl||''}"><div class="cell tlab">${lab}</div><div class="cell"></div>${ps.map(p=>`<div class="cell tnum">${cellTot(fn(p.id))}${(p.id===oid&&detFn)?detLine(detFn()):''}</div>`).join('')}</div>`;
   const totalsHtml = S.half===0 ? totRow('計',pid=>halfTot(0,pid),()=>halfDet(0))
     : totRow('計',pid=>halfTot(1,pid),()=>halfDet(1))+totRow('前半',pid=>halfTot(0,pid),()=>halfDet(0),'sub')+totRow('合計',grand,grandDet,'grand');
   const hn=hf=>(r.course.halves[hf]&&r.course.halves[hf].name)||(hf===0?'OUT':'IN');
@@ -952,31 +985,60 @@ function renderCard(){
     <div class="halfsw"><button class="${S.half===0?'on':''}" onclick="setHalf(0)">前半 ${esc(hn(0))}</button><button class="${S.half===1?'on':''}" onclick="setHalf(1)">後半 ${esc(hn(1))}</button></div>
     <div class="card" style="margin:0 4px 12px; padding:10px"><div class="taglab" style="margin:0 0 4px">${S.half===0?'前半':'後半'}の目標・テーマ</div>
       <input type="text" value="${esc(themeOf(S.half))}" placeholder="例：3パットしない／曲げても林に入れない" oninput="setTheme(${S.half},this.value)"></div>
-    <div class="sc"><div class="scrow schead"><div class="cell" style="text-align:left; padding-left:8px;">ホール</div>
+    <div class="sc"><div class="scrow schead"><div class="cell" style="text-align:left; padding-left:8px;">ホール</div><div class="cell">番手</div>
       ${ps.map(p=>`<div class="cell">${esc(p.name)}${p.owner?' ★':''}</div>`).join('')}</div>
       ${rows}${totalsHtml}</div>`;
   $('topsub').textContent=esc(r.course.name||'ラウンド')+' ・ '+r.date;
-  $('topbtns').innerHTML=`<button class="iconbtn" onclick="editSetup()">⚙ 設定</button>`;
+  $('topbtns').innerHTML=`<button class="iconbtn" onclick="openAnalysis()">📊 分析</button> <button class="iconbtn" onclick="editSetup()">⚙ 設定</button>`;
 }
 function setHalf(h){ S.half=h; renderCard(); }
+/* ===== 分析画面（ラウンド中・1stパットの止まり位置を縮小一覧） ===== */
+function openAnalysis(){ S.view='analysis'; render(); }
+function setHalfA(h){ S.half=h; render(); }
+function miniPuttSvg(d){ const z=PUTZONES.find(function(x){return x.id===d.zone;});
+  const zs=PUTZONES.map(function(zz){ const on=zz.id===d.zone; const f=on?'#85B7EB':zz.fill, s=on?'#185FA5':zz.stroke;
+    if(zz.circle) return '<circle cx="'+zz.cx+'" cy="'+zz.cy+'" r="'+zz.r+'" fill="'+f+'" stroke="'+s+'" stroke-width="1.5"></circle>';
+    return '<rect x="'+zz.x+'" y="'+zz.y+'" width="'+zz.w+'" height="'+zz.h+'" fill="'+f+'" stroke="'+s+'" stroke-width="1" rx="1"></rect>'; }).join('');
+  let path='';
+  if(z){ const bx=150,by=346,ex=z.cx,ey=z.cy; let hx=(bx+ex)/2,hy=(by+ey)/2; if(d.line){hx=d.line.hx;hy=d.line.hy;}
+    const cx=2*hx-0.5*bx-0.5*ex, cy=2*hy-0.5*by-0.5*ey;
+    path='<path d="M '+bx+' '+by+' Q '+cx+' '+cy+' '+ex+' '+ey+'" fill="none" stroke="#D85A30" stroke-width="3"></path><circle cx="'+ex+'" cy="'+ey+'" r="7" fill="#D85A30"></circle>'; }
+  return '<svg viewBox="0 14 300 334" style="width:100%; height:auto">'+zs+path+'</svg>'; }
+function renderAnalysis(){
+  const r=S.round, h0=S.half*9, u=DB.settings().units.putt;
+  const hn=function(hf){ return (r.course.halves[hf]&&r.course.halves[hf].name)||(hf===0?'OUT':'IN'); };
+  let cards='';
+  for(let i=0;i<9;i++){ const idx=h0+i, h=r.holes[idx], o=h.owner; const d=o&&o.putt&&o.putt.details[0];
+    const mini=(d&&d.zone)?miniPuttSvg(d):'<div class="sm muted" style="text-align:center; padding:28px 0">記録なし</div>';
+    const sub=(d&&d.zone)?(d.dist+u+'・傾斜'+(d.slope>0?'+':'')+(d.slope||0)+' → '+pzName(d.zone)):'';
+    cards+='<div class="card" style="padding:8px"><div class="sm" style="font-weight:700; margin-bottom:4px">No.'+h.holeNo+' <span class="muted">Par '+h.par+'</span></div>'+mini+'<div class="sm muted" style="margin-top:4px; text-align:center; min-height:14px">'+esc(sub)+'</div></div>';
+  }
+  $('app').innerHTML='<div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">分析</div></div>'
+    +'<div class="halfsw"><button class="'+(S.half===0?'on':'')+'" onclick="setHalfA(0)">前半 '+esc(hn(0))+'</button><button class="'+(S.half===1?'on':'')+'" onclick="setHalfA(1)">後半 '+esc(hn(1))+'</button></div>'
+    +'<h2 style="margin:10px 4px 6px">1stパットの止まり位置（'+(S.half===0?'前半':'後半')+'）</h2>'
+    +'<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 4px 24px">'+cards+'</div>';
+  $('topsub').textContent='分析'; $('topbtns').innerHTML='';
+}
 
 /* ============ 詳細（ショット/アプローチ/パット） ============ */
-function availStages(){ const lv=S.round.logLevel; return { through:lv>=3, approach:lv>=2, putt:true }; }
-function firstStage(){ const lv=S.round.logLevel; return lv>=3?'through':(lv>=2?'approach':'putt'); }
+function availStages(){ const lv=S.round.logLevel; const h=S.round.holes[S.detailHole], o=h&&h.owner;
+  return { through:lv>=2, approach:!!(o&&o.approach&&o.approach.shots&&o.approach.shots.length), putt:true }; }
+function firstStage(){ const lv=S.round.logLevel; return lv>=2?'through':'putt'; }
 function openDetail(i){ S.detailHole=i; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
-  S.stage=firstStage(); S.view='detail'; curClips=[]; render(); loadCurClips(); }
+  S.stage=firstStage(); S.view='detail'; curClips=[]; loadPutDraft(); render(); loadCurClips(); }
 function clipsGuard(){ if(recState!=='idle'){ alert('録音中／処理中です。停止・完了してから移動してください。'); return false; } return true; }
 function navDetail(d){ const n=S.detailHole+d; if(n<0||n>17)return; if(!clipsGuard())return; S.detailHole=n; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
-  if(!availStages()[S.stage]) S.stage=firstStage(); curClips=[]; render(); loadCurClips(); }
-function setStage(st){ if(!availStages()[st])return; S.stage=st; render(); }
+  if(!availStages()[S.stage]) S.stage=firstStage(); curClips=[]; loadPutDraft(); render(); loadCurClips(); }
+function setStage(st){ if(!availStages()[st])return; S.stage=st; loadPutDraft(); render(); }
 function stgObj(){ return OWN()[S.stage]; }
 function shots(){ return stgObj().shots; }
 function pickClub(i,c){ const s=shots()[i]; s.club=c;
   if(S.stage==='through' && i>0){ const d=clubDist(c); if(d!=null)s.yard=d; }
   save(); render(); }
 function setPen(i,v){ shots()[i].pen=+v; save(); render(); }
+function penAdj(i,d){ const s=shots()[i]; s.pen=Math.max(0,Math.min(5,(s.pen||0)+d)); save(); render(); }
 function setShotYard(i,v){ shots()[i].yard=(v===''?null:+v); save(); }
 function addShot(){ const a=shots(); const s=mkShot();
   if(S.stage==='through'){ s.yard = a.length===0 ? H().yard : null; }
@@ -995,6 +1057,11 @@ function setRes(r){ const t=OWN().through; t.res=(t.res===r?null:r); save(); ren
 function setRemain(v){ OWN().through.remain=+v; save(); }
 function setEval(kind,v){ const e=stgObj().eval; e[kind]=(e[kind]===v?null:v);
   if(S.stage==='approach'&&kind==='result'){ OWN().putt.okOn=(e.result==='ok'); } save(); render(); }
+/* ホールアウト種別：チップイン=ショットで沈めた(パット0)／OK=寄せワン(ギミー1パット)。排他トグル */
+function setHoleOut(kind){ const p=OWN().putt;
+  if(kind==='chipin'){ p.chipIn=!p.chipIn; if(p.chipIn)p.okOn=false; }
+  else { p.okOn=!p.okOn; if(p.okOn)p.chipIn=false; }
+  save(); render(); }
 function setYardHole(v){ const h=H(); h.yard=+v; if(S.round.course.halves[h.half]) S.round.course.halves[h.half].yards[h.posInHalf]=+v; save(); render(); }
 /* パット */
 function setPuttNum(v){ OWN().putt.num=+v; puttSyncNum(OWN().putt); save(); render(); }
@@ -1015,52 +1082,93 @@ function stageContent(){
   const stg=stgObj(), arr=stg.shots, isT=S.stage==='through', rOpts=isT?CRESULT:ARESULT;
   const clubs=DB.settings().clubs, uy=DB.settings().units.toGreen;
   const strip=(i,s)=>`<div class="cstrip" data-idx="${i}">${clubs.map(c=>`<div class="cbtn ${s.club===c.name?'on':''}" data-club="${esc(c.name)}" onclick="pickClub(${i},'${esc(c.name)}')">${esc(c.name)}</div>`).join('')}</div>`;
-  const penSel=(i,s)=>`<span class="pnlab">PN</span><select class="pensel ${s.pen?'act':''}" onchange="setPen(${i},this.value)"><option value="0" ${s.pen===0?'selected':''}>-</option><option value="1" ${s.pen===1?'selected':''}>+1</option><option value="2" ${s.pen===2?'selected':''}>+2</option></select>`;
   const ydSel=(i,s)=>`<select class="ydbox" onchange="setShotYard(${i},this.value)">${shotYardOpts(s.yard)}</select>`;
+  const penStep=(i,s)=>`<span class="pnlab">PN</span><button class="iconbtn" style="width:30px; padding:6px 0" onclick="penAdj(${i},-1)">−</button><b style="min-width:24px; text-align:center; ${s.pen?'color:var(--bad)':''}">${s.pen?'+'+s.pen:'-'}</b><button class="iconbtn" style="width:30px; padding:6px 0" onclick="penAdj(${i},1)">＋</button>`;
   const row=(s,i)=>`<div class="srow"><div class="srowhead"><div class="seq">${i+1}</div>
-      <div class="cname ${s.club?'':'non'}">${s.club?esc(s.club):'クラブ'}</div>${penSel(i,s)}${ydSel(i,s)}
+      <div class="cname ${s.club?'':'non'}">${s.club?esc(s.club):'クラブ'}</div>${ydSel(i,s)}${penStep(i,s)}
       <button class="delx" onclick="delShot(${i})">✕</button></div>${strip(i,s)}</div>`;
   const detail=(s,i)=>`<div class="sdetail"><div class="sdhead">${i+1}打目${s.club?' ・ '+esc(s.club):''}${s.yard!=null?' ・ '+s.yard+uy:''}</div>
       <div class="taglab">事前タグ</div>${tagGroup(i,'pre',s.pre)}
       <div class="taglab">事後タグ</div>${tagGroup(i,'post',s.post)}
       <div class="taglab">メモ</div><textarea placeholder="メモ" oninput="setNote(${i},this.value)">${esc(s.note)}</textarea></div>`;
-  const throughResult = isT?`<h2>ショットの結果</h2><div class="card"><div class="reseg">
-      <div class="ro ${stg.res==='on'?'on':''}" onclick="setRes('on')">ON</div>
-      <div class="ro ${stg.res==='approach'?'on':''}" onclick="setRes('approach')">アプローチへ</div></div></div>`:'';
   return `<h2>ショット</h2>${arr.map(row).join('')}
     <div class="addrow"><button class="add" onclick="addShot()">＋ 1打追加</button><button class="rem" onclick="remLast()">△ 1打削除</button></div>
-    ${throughResult}
     <h2>評価</h2><div class="card">
       <div class="taglab" style="margin-top:0;">結果</div><div class="seg">${rOpts.map(([v,l])=>`<div class="segopt ${stg.eval.result===v?'on':''}" onclick="setEval('result','${v}')">${l}</div>`).join('')}</div>
-      <div class="taglab">意図</div><div class="seg">${CINTENT.map(([v,l])=>`<div class="segopt ${stg.eval.intent===v?'on':''}" onclick="setEval('intent','${v}')">${l}</div>`).join('')}</div></div>
+      <div class="taglab">意図</div><div class="seg">${CINTENT.map(([v,l])=>`<div class="segopt ${stg.eval.intent===v?'on':''}" onclick="setEval('intent','${v}')">${l}</div>`).join('')}</div>
+      <div class="taglab">ホールアウト（グリーン外で終了）</div><div class="seg"><div class="segopt ${OWN().putt.chipIn?'on':''}" onclick="setHoleOut('chipin')">チップイン</div><div class="segopt ${OWN().putt.okOn?'on':''}" onclick="setHoleOut('ok')">OK（寄せワン）</div></div></div>
     <h2>1打ごとの詳細</h2>${arr.map(detail).join('')}`;
 }
+/* ===== パット ビジュアル入力（Phase1：同心ゾーン＋通過点ドラッグ） ===== */
+function putDistOpts(cur){ var vals=[0.5,1,1.5,2,2.5]; for(var v=3;v<=30;v++)vals.push(v);
+  if(cur!=null&&cur!==''&&vals.indexOf(+cur)<0){ vals.push(+cur); vals.sort(function(a,b){return a-b;}); }
+  var o='<option value="">—</option>'; vals.forEach(function(v){ o+='<option value="'+v+'" '+((+cur===v)?'selected':'')+'>'+v+'</option>'; }); return o; }
+function pzName(id){ return id==='IN'?'カップイン':id.indexOf('OK')===0?('OK・'+id.slice(2)):id.indexOf('OUT')===0?('外し・'+id.slice(3)):id; }
+function pzRes(id){ return id==='IN'?'カップイン':id.indexOf('OK')===0?'OK':'外れ'; }
+function putTargetDist(){ return (putInput.dist!==''&&putInput.dist!=null)?(+putInput.dist+(putInput.slope||0)):null; }
+function updatePutTarget(){ var el=$('putTarget'); if(!el)return; var u=DB.settings().units.putt, t=putTargetDist(); el.textContent=(t!=null)?(t+u):'—'; }
+/* 作業中パットを下書きとして一時保存（離脱・再読込でも保持）／当該ホールのownerに保存 */
+function savePutDraft(){ if(!S.round)return; var h=H(); if(!h)return; if(!h.owner)h.owner=mkOwner(h.par);
+  h.owner.putt.draft={dist:putInput.dist,slope:putInput.slope,zone:putInput.zone,hx:putInput.hx,hy:putInput.hy}; save(); }
+function loadPutDraft(){ var h=(S.round?H():null), d=h&&h.owner&&h.owner.putt&&h.owner.putt.draft;
+  putInput = d? {dist:(d.dist!=null?d.dist:''),slope:d.slope||0,zone:d.zone||null,hx:(d.hx!=null?d.hx:null),hy:(d.hy!=null?d.hy:null)} : {dist:'',slope:0,zone:null,hx:null,hy:null}; }
+function putDist(v){ putInput.dist=v; updatePutTarget(); savePutDraft(); }
+function putSlope(d){ putInput.slope=Math.max(-5,Math.min(5,(putInput.slope||0)+d)); var el=$('putSlopeVal'); if(el)el.textContent=(putInput.slope>0?'+':'')+putInput.slope; updatePutTarget(); savePutDraft(); }
+function putZone(id){ putInput.zone=id; var z=PUTZONES.find(function(x){return x.id===id;}); putInput.hx=(150+z.cx)/2; putInput.hy=(346+z.cy)/2; drawPuttSvg(); savePutDraft(); }
+function drawPuttSvg(){ var svg=$('putSvg'); if(!svg)return;
+  document.querySelectorAll('#putZones .pz').forEach(function(el){ var zid=el.getAttribute('data-z'); var z=PUTZONES.find(function(x){return x.id===zid;}); var on=putInput.zone===zid; el.setAttribute('fill',on?'#85B7EB':z.fill); el.setAttribute('stroke',on?'#185FA5':z.stroke); });
+  var gp=$('putPath'), hd=$('putHandle'), dv=$('putDerived');
+  if(putInput.zone&&putInput.hx!=null){ var z=PUTZONES.find(function(x){return x.id===putInput.zone;}); var bx=150,by=346,ex=z.cx,ey=z.cy,hx=putInput.hx,hy=putInput.hy;
+    var cx=2*hx-0.5*bx-0.5*ex, cy=2*hy-0.5*by-0.5*ey;
+    gp.innerHTML='<path d="M '+bx+' '+by+' Q '+cx+' '+cy+' '+ex+' '+ey+'" fill="none" stroke="#D85A30" stroke-width="2.5"></path>';
+    hd.setAttribute('cx',hx); hd.setAttribute('cy',hy); hd.style.display='';
+    var dx=hx-bx, lo=dx<-10?'左打ち出し':dx>10?'右打ち出し':'まっすぐ', bend=hx-((bx+ex)/2), bl=bend>8?'フック(右→左)':bend<-8?'スライス(左→右)':'ストレート';
+    if(dv)dv.textContent='推定ライン：'+lo+' ／ '+bl;
+  } else { gp.innerHTML=''; hd.style.display='none'; if(dv)dv.textContent=''; } }
+function putRecord(){ if(!putInput.dist){ alert('距離を選んでください'); return; } if(!putInput.zone){ alert('止まった位置をタップしてください'); return; }
+  var o=OWN().putt; o.details.push({dist:+putInput.dist, slope:putInput.slope||0, zone:putInput.zone, line:(putInput.hx!=null?{hx:putInput.hx,hy:putInput.hy}:null), result:pzRes(putInput.zone), effDist:(+putInput.dist+(putInput.slope||0)), slopeV:null,slopeH:null,exec:null,touch:0,tags:[]});
+  o.num=o.details.length; o.draft=null; save(); resetPutInput(); render(); }
+function putDelLast(){ var o=OWN().putt; if(!o.details.length)return; o.details.pop(); o.num=o.details.length; save(); render(); }
+function wirePuttSvg(){ var svg=$('putSvg'); if(!svg)return; drawPuttSvg();
+  var hd=$('putHandle'), drag=false;
+  function toSvg(ev){ var pt=svg.createSVGPoint(); var t=ev.touches?ev.touches[0]:ev; pt.x=t.clientX; pt.y=t.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+  hd.addEventListener('pointerdown',function(e){ drag=true; hd.style.cursor='grabbing'; try{hd.setPointerCapture(e.pointerId);}catch(_){ } e.stopPropagation(); });
+  hd.addEventListener('pointermove',function(e){ if(!drag)return; var pp=toSvg(e); putInput.hx=Math.max(12,Math.min(288,pp.x)); putInput.hy=Math.max(16,Math.min(344,pp.y)); drawPuttSvg(); });
+  hd.addEventListener('pointerup',function(){ drag=false; hd.style.cursor='grab'; savePutDraft(); }); }
 function puttContent(){
-  const p=OWN().putt; puttSyncNum(p); const okCount=puttOK(p), total=p.num+okCount, u=DB.settings().units.putt;
-  let numOpts=''; for(let n=0;n<=9;n++)numOpts+=`<option value="${n}" ${p.num===n?'selected':''}>${n}</option>`;
-  const seg=(i,field,list)=>`<div class="seg">${list.map(l=>`<div class="segopt ${p.details[i][field]===l?'on':''}" onclick="setPd(${i},'${field}','${l}')">${l}</div>`).join('')}</div>`;
-  const tags=i=>{ const master=DB.settings().tags.putt, sel=p.details[i].tags;
-    const all=[...master, ...sel.filter(t=>!master.includes(t))];
-    return all.map(t=>`<div class="tag putt ${sel.includes(t)?'on':''}" onclick="togglePd(${i},'${esc(t)}')">${esc(t)}</div>`).join(''); };
-  const detail=(d,i)=>`<div class="sdetail"><div class="sdhead">${i+1}パット目</div>
-    <div class="drow"><div class="dcol"><div class="dt">距離</div><select onchange="setPdn(${i},'dist',this.value)">${stepOpts(d.dist)}</select></div>
-      <div class="dcol"><div class="dt">傾斜込み</div><select onchange="setPdn(${i},'effDist',this.value)">${stepOpts(d.effDist)}</select></div>
-      <div class="dcol"><div class="dt">タッチ</div><select onchange="setPdn(${i},'touch',this.value)">${touchOpts(d.touch)}</select></div></div>
-    <div class="taglab">読み傾斜（縦）</div>${seg(i,'slopeV',SLOPEV)}
-    <div class="taglab">読み傾斜（横）</div>${seg(i,'slopeH',SLOPEH)}
-    <div class="taglab">結果</div>${seg(i,'result',PRESULT)}
-    <div class="taglab">実行</div>${seg(i,'exec',EXECV)}
-    <div class="taglab">タグ（単位:${u}）</div><div class="tags">${tags(i)}</div>
-    <div class="addtag"><input type="text" id="putttag_${i}" placeholder="＋タグ追加" onkeydown="if(event.key==='Enter'){event.preventDefault();addPuttTag(${i})}"><button onclick="addPuttTag(${i})">追加</button></div></div>`;
-  return `<button class="okbtn ${p.okOn?'on':''}" onclick="toggleOK()">OK（寄せワン）</button>
-    <div class="card" style="margin-top:10px;"><div class="frow" style="margin-top:0;">
-      <span class="pnlab" style="font-size:13px;">パット 計 ${total} ＝</span><select onchange="setPuttNum(this.value)">${numOpts}</select>
-      <span class="pnlab" style="font-size:13px;">＋ OK</span><b style="font-size:18px;">${okCount}</b></div></div>
-    ${p.details.map(detail).join('')}`;
+  var p=OWN().putt, u=DB.settings().units.putt;
+  var zsvg=PUTZONES.map(function(z){
+    if(z.circle) return '<circle data-z="'+z.id+'" class="pz" cx="'+z.cx+'" cy="'+z.cy+'" r="'+z.r+'" fill="'+z.fill+'" stroke="'+z.stroke+'" stroke-width="1.5" style="cursor:pointer" onclick="putZone(\''+z.id+'\')"></circle>'+(z.label?'<text x="'+z.cx+'" y="'+(z.cy+4)+'" text-anchor="middle" font-size="11" fill="#04342C" style="pointer-events:none">'+z.label+'</text>':'');
+    return '<rect data-z="'+z.id+'" class="pz" x="'+z.x+'" y="'+z.y+'" width="'+z.w+'" height="'+z.h+'" rx="1" fill="'+z.fill+'" stroke="'+z.stroke+'" stroke-width="1" style="cursor:pointer" onclick="putZone(\''+z.id+'\')"></rect>'+(z.label?'<text x="'+z.cx+'" y="'+(z.cy+3)+'" text-anchor="middle" font-size="'+(z.band?11:10)+'" fill="'+(z.band?'#993C1D':'#0F6E56')+'" style="pointer-events:none">'+z.label+'</text>':'');
+  }).join('');
+  var list=p.details.map(function(d,i){
+    var r = d.zone ? ('傾斜'+(d.slope>0?'+':'')+(d.slope||0)+' → '+pzName(d.zone)) : [(d.slopeV||''),(d.result||''),((d.tags||[]).join('・'))].filter(Boolean).join(' ');
+    return '<div style="font-size:13px; padding:4px 0; border-bottom:0.5px solid var(--border)">'+(i+1)+'. '+(d.dist!=null?d.dist+u:'')+' '+esc(r)+'</div>';
+  }).join('');
+  var cnt=p.details.length, done=cnt&&p.details[cnt-1].zone==='IN', t=putTargetDist();
+  return '<div class="card" style="margin-bottom:10px">'
+    +'<div class="taglab" style="margin:0 0 4px">止まった位置をタップ → オレンジの点をドラッグで曲がり</div>'
+    +'<svg id="putSvg" viewBox="0 14 300 334" style="width:100%; height:auto; touch-action:none">'
+    +'<g id="putZones">'+zsvg+'</g>'
+    +'<line x1="150" y1="56" x2="150" y2="304" stroke="#B4B2A9" stroke-width="1" stroke-dasharray="4 3" style="pointer-events:none"></line>'
+    +'<line x1="30" y1="180" x2="270" y2="180" stroke="#B4B2A9" stroke-width="1" stroke-dasharray="4 3" style="pointer-events:none"></line>'
+    +'<g id="putPath" style="pointer-events:none"></g>'
+    +'<circle id="putHandle" r="9" fill="#D85A30" stroke="#fff" stroke-width="2" style="display:none;cursor:grab"></circle>'
+    +'</svg>'
+    +'<div id="putDerived" class="sm muted" style="margin-top:2px; min-height:15px"></div>'
+    +'<div class="frow" style="margin-top:6px; gap:8px; align-items:flex-end">'
+    +'<div style="flex:1.1"><div class="taglab" style="margin:0 0 3px">距離（'+u+'）</div><select onchange="putDist(this.value)">'+putDistOpts(putInput.dist)+'</select></div>'
+    +'<div style="flex:1.4"><div class="taglab" style="margin:0 0 3px">傾斜（+上/−下）</div><div class="frow" style="margin-top:0; align-items:center; gap:4px"><button class="iconbtn" style="width:34px" onclick="putSlope(-1)">−</button><b id="putSlopeVal" style="flex:1; text-align:center; font-size:16px">'+(putInput.slope>0?'+':'')+putInput.slope+'</b><button class="iconbtn" style="width:34px" onclick="putSlope(1)">＋</button></div></div>'
+    +'<div style="flex:1"><div class="taglab" style="margin:0 0 3px">打つべき</div><div style="height:38px; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800"><span id="putTarget">'+(t!=null?(t+u):'—')+'</span></div></div>'
+    +'</div>'
+    +'<div class="addrow" style="margin-top:8px"><button class="add" onclick="putRecord()">記録して次のパットへ</button><button class="rem" onclick="putDelLast()">直前を削除</button></div>'
+    +(cnt?('<div style="margin-top:10px">'+list+'<div class="sm" style="font-weight:700; margin-top:6px">計 '+cnt+'パット'+(done?'（カップイン）':'')+'</div></div>'):'')
+    +'</div>';
 }
 function renderDetail(){
   const h=H(), av=availStages(), own=h.owner;
-  const cnt={through:throughCount(h),approach:approachCount(h),putt:puttCount(h)};
+  /* 統合後の「ショット」タブは道中＋アプローチの合計打数を表示（旧データでアプローチタブがある回は道中のみ） */
+  const cnt={through:(av.approach?throughCount(h):throughCount(h)+approachCount(h)),approach:approachCount(h),putt:puttCount(h)};
   /* 整合性 */
   let appSt='', puttSt='';
   if(own){ const res=own.through.res, aN=cnt.approach;
@@ -1095,6 +1203,7 @@ function renderDetail(){
     const idx=+el.dataset.idx;
     const startClub = S.stage==='approach'?sc.approach:(idx===0?sc.first:sc.second);
     const se=el.querySelector('[data-club="'+startClub+'"]'); if(se) el.scrollLeft = se.offsetLeft - 4; });
+  if(S.stage==='putt') wirePuttSvg();
 }
 function backToCard(){ if(!clipsGuard())return; S.view='card'; render(); refreshClipCounts(); }
 
@@ -1110,6 +1219,7 @@ function render(){
   else if(S.view==='exportview') renderExportView();
   else if(S.view==='detail') renderDetail();
   else if(S.view==='aiextract') renderAiExtract();
+  else if(S.view==='analysis') renderAnalysis();
   else renderCard();
   if(S.view!==_lastView || (S.view==='detail'&&S.detailHole!==_lastHole)) window.scrollTo(0,0);
   _lastView=S.view; _lastHole=S.detailHole;
