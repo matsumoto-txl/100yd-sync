@@ -213,8 +213,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.13.6';
-const APP_BUILD='2026-10-14';
+const APP_VERSION='2.13.7';
+const APP_BUILD='2026-10-15';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -1034,7 +1034,9 @@ function setStage(st){ if(!availStages()[st])return; S.stage=st; loadPutDraft();
 function stgObj(){ return OWN()[S.stage]; }
 function shots(){ return stgObj().shots; }
 function pickClub(i,c){ const s=shots()[i]; s.club=c;
-  if(S.stage==='through' && i>0){ const d=clubDist(c); if(d!=null)s.yard=d; }
+  /* 次打の残り距離の初期値＝「この打の残り − この番手の想定距離」。未設定時のみ補完（人の編集は上書きしない） */
+  if(S.stage==='through'){ const arr=shots(), nx=arr[i+1], d=clubDist(c);
+    if(nx && nx.yard==null && s.yard!=null && d!=null) nx.yard=Math.max(30, s.yard - d); }
   save(); render(); }
 function setPen(i,v){ shots()[i].pen=+v; save(); render(); }
 function penAdj(i,d){ const s=shots()[i]; s.pen=Math.max(0,Math.min(5,(s.pen||0)+d)); save(); render(); }
@@ -1042,7 +1044,11 @@ function penAdj(i,d){ const s=shots()[i]; s.pen=Math.max(0,Math.min(5,(s.pen||0)
 function setShotRes(i,v){ const s=shots()[i]; s.res=v; s.pen=(v==='+1'?1:v==='+2'?2:0); save(); render(); }
 function setShotYard(i,v){ shots()[i].yard=(v===''?null:+v); save(); }
 function addShot(){ const a=shots(); const s=mkShot();
-  if(S.stage==='through'){ s.yard = a.length===0 ? H().yard : null; }
+  if(S.stage==='through'){
+    if(a.length===0){ s.yard = H().yard; }
+    else { const p=a[a.length-1], pd=p.club?clubDist(p.club):null;
+      s.yard = (p.yard!=null && pd!=null) ? Math.max(30, p.yard - pd) : null; }
+  }
   else if(S.stage==='approach'){ s.yard = a.length===0 ? null : halfFloor(a[a.length-1].yard); }
   a.push(s); save(); render(); }
 function shotMin(){ return S.stage==='through'?1:0; }
