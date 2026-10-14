@@ -179,10 +179,10 @@
 <div id="updatebar" style="display:none; position:fixed; left:0; right:0; bottom:0; z-index:60; background:#4f8cff; color:#fff; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); box-shadow:0 -2px 14px rgba(0,0,0,.45);">
   <div style="max-width:460px; margin:0 auto;">
     <div style="font-weight:800; margin-bottom:4px;">新しいバージョンがあります</div>
-    <div style="font-size:13px; opacity:.95; margin-bottom:8px;">更新する前に、念のためバックアップの書き出しをおすすめします。</div>
+    <div style="font-size:13px; opacity:.95; margin-bottom:8px;">「今すぐ更新」を押すか、アプリを閉じて開き直すと次回起動時に更新されます。念のため先にバックアップを。（記録は更新で消えません）</div>
     <div style="display:flex; gap:8px;">
       <button onclick="exportData()" style="flex:1; appearance:none; border:1px solid rgba(255,255,255,.65); background:transparent; color:#fff; border-radius:10px; padding:12px; font-weight:800; cursor:pointer;">先にバックアップ</button>
-      <button onclick="doUpdate()" style="flex:1; appearance:none; border:none; background:#fff; color:#2a5bd0; border-radius:10px; padding:12px; font-weight:800; cursor:pointer;">更新する</button>
+      <button onclick="doUpdate()" style="flex:1; appearance:none; border:none; background:#fff; color:#2a5bd0; border-radius:10px; padding:12px; font-weight:800; cursor:pointer;">今すぐ更新</button>
     </div>
   </div>
 </div>
@@ -213,7 +213,7 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.13.5';
+const APP_VERSION='2.13.6';
 const APP_BUILD='2026-10-14';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
