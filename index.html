@@ -213,7 +213,7 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.13.3';
+const APP_VERSION='2.13.4';
 const APP_BUILD='2026-10-14';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -997,7 +997,7 @@ function miniPuttSvg(f){
     return '<rect x="'+z.x+'" y="'+z.y+'" width="70" height="70" fill="'+fill+'" stroke="'+st+'" stroke-width="1" rx="1"></rect>'; }).join('');
   var cup='<circle cx="150" cy="155" r="12" fill="none" stroke="#0F6E56" stroke-width="2"></circle><circle cx="150" cy="155" r="3" fill="#0F6E56"></circle>';
   var b=f.read==='フック'?1:f.read==='スライス'?-1:0;
-  var read='<path d="M '+PUTBALL.x+' '+PUTBALL.y+' C 150 298 '+(150+b*50)+' 192 '+PUTCUP.x+' '+PUTCUP.y+'" fill="none" stroke="#5F5E5A" stroke-width="2" stroke-dasharray="3 4"></path>';
+  var read='<path d="M '+PUTBALL.x+' '+PUTBALL.y+' Q '+(150+b*60)+' 205 '+PUTCUP.x+' '+PUTCUP.y+'" fill="none" stroke="#5F5E5A" stroke-width="2" stroke-dasharray="3 4"></path>';
   var act='';
   if(f.zone){ var z=PUTZONES.find(function(x){return x.id===f.zone;}); if(z){ var hx=(PUTBALL.x+z.cx)/2, hy=(PUTBALL.y+z.cy)/2; if(f.line){hx=f.line.hx;hy=f.line.hy;}
     var cx=2*hx-0.5*PUTBALL.x-0.5*z.cx, cy=2*hy-0.5*PUTBALL.y-0.5*z.cy;
@@ -1134,7 +1134,7 @@ function drawPuttSvg(){ var svg=$('putSvg'); if(!svg)return;
   document.querySelectorAll('#putZones .pz').forEach(function(el){ var zid=el.getAttribute('data-z'); var z=PUTZONES.find(function(x){return x.id===zid;}); var on=putInput.zone===zid; el.setAttribute('fill',on?'#CFE4FA':(z.c?PZK:PZG)); el.setAttribute('stroke',on?'#185FA5':(z.c?PZKs:PZGs)); el.setAttribute('stroke-width',on?2.5:1); });
   var gl=$('putLines'), hd=$('putHandle');
   var b=putInput.read==='フック'?1:putInput.read==='スライス'?-1:0;
-  var read='<path d="M '+PUTBALL.x+' '+PUTBALL.y+' C 150 298 '+(150+b*50)+' 192 '+PUTCUP.x+' '+PUTCUP.y+'" fill="none" stroke="#5F5E5A" stroke-width="2" stroke-dasharray="3 4"></path>';
+  var read='<path d="M '+PUTBALL.x+' '+PUTBALL.y+' Q '+(150+b*60)+' 205 '+PUTCUP.x+' '+PUTCUP.y+'" fill="none" stroke="#5F5E5A" stroke-width="2" stroke-dasharray="3 4"></path>';
   var act='';
   if(putInput.zone){ var z=PUTZONES.find(function(x){return x.id===putInput.zone;});
     if(putInput.hx==null){ putInput.hx=(PUTBALL.x+z.cx)/2; putInput.hy=(PUTBALL.y+z.cy)/2; }
