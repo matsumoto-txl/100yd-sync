@@ -213,7 +213,7 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.13.2';
+const APP_VERSION='2.13.3';
 const APP_BUILD='2026-10-14';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -1162,22 +1162,23 @@ function puttContent(){
   var recN2=recState==='rec'&&recTarget==='note2';
   return '<div class="card" style="margin-bottom:10px">'
     +'<div class="taglab" style="margin:0 0 4px">1stパット：止まった位置をタップ → オレンジの点をドラッグで曲がり</div>'
-    +'<div style="display:flex; align-items:flex-start; gap:8px">'
-    +'<svg id="putSvg" viewBox="0 40 300 332" style="width:80%; height:auto; touch-action:none; display:block">'
+    +'<div style="display:flex; align-items:stretch; gap:10px">'
+    +'<svg id="putSvg" viewBox="0 40 300 332" style="flex:0 0 56%; width:56%; height:auto; touch-action:none; display:block">'
     +'<g id="putZones">'+zsvg+'</g>'
     +'<circle cx="150" cy="155" r="14" fill="none" stroke="#0F6E56" stroke-width="2" style="pointer-events:none"></circle>'
     +'<circle cx="150" cy="155" r="3" fill="#0F6E56" style="pointer-events:none"></circle>'
     +'<g id="putLines" style="pointer-events:none"></g>'
     +'<circle cx="150" cy="350" r="6" fill="#2C2C2A" style="pointer-events:none"></circle>'
     +'<circle id="putHandle" r="10" fill="#D85A30" stroke="#fff" stroke-width="2" style="display:none;cursor:grab"></circle>'
-    +'</svg><div style="flex:1; min-width:36px" aria-hidden="true"></div></div>'
-    +'<div class="sm muted" style="margin-top:2px">読み＝点線／実際＝実線（点をドラッグ）。右の余白でスクロール</div>'
-    +'<div class="frow" style="margin-top:8px; gap:6px; align-items:flex-end; flex-wrap:wrap">'
-    +'<div style="flex:1 1 56px"><div class="taglab" style="margin:0 0 3px">距離（'+u+'）</div><select onchange="putDist(this.value)">'+putDistOpts(putInput.dist)+'</select></div>'
-    +'<div style="flex:1.4 1 108px"><div class="taglab" style="margin:0 0 3px">傾斜（+上/−下）</div><div class="frow" style="margin-top:0; align-items:center; gap:4px"><button class="iconbtn" style="width:32px" onclick="putSlope(-1)">−</button><b id="putSlopeVal" style="flex:1; text-align:center; font-size:16px">'+(putInput.slope>0?'+':'')+putInput.slope+'</b><button class="iconbtn" style="width:32px" onclick="putSlope(1)">＋</button></div></div>'
-    +'<div style="flex:1 1 50px"><div class="taglab" style="margin:0 0 3px">打つべき</div><div style="height:38px; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800"><span id="putTarget">'+(t!=null?(t+u):'—')+'</span></div></div>'
-    +'<div style="flex:1 1 66px"><div class="taglab" style="margin:0 0 3px">結果②（±'+u+'）</div><select onchange="putR2(this.value)">'+r2opts+'</select></div>'
+    +'</svg>'
+    +'<div style="flex:1 1 0; min-width:118px; display:flex; flex-direction:column; justify-content:space-between; gap:8px; text-align:center">'
+    +'<div><div class="taglab" style="margin:0 0 3px">距離（'+u+'）</div><select style="margin:0 auto" onchange="putDist(this.value)">'+putDistOpts(putInput.dist)+'</select></div>'
+    +'<div><div class="taglab" style="margin:0 0 3px">傾斜（+上/−下）</div><div class="frow" style="margin-top:0; align-items:center; gap:4px"><button class="iconbtn" style="width:32px" onclick="putSlope(-1)">−</button><b id="putSlopeVal" style="flex:1; text-align:center; font-size:16px">'+(putInput.slope>0?'+':'')+putInput.slope+'</b><button class="iconbtn" style="width:32px" onclick="putSlope(1)">＋</button></div></div>'
+    +'<div><div class="taglab" style="margin:0 0 3px">打つべき</div><div style="height:38px; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800"><span id="putTarget">'+(t!=null?(t+u):'—')+'</span></div></div>'
+    +'<div><div class="taglab" style="margin:0 0 3px">結果②（±'+u+'）</div><select style="margin:0 auto" onchange="putR2(this.value)">'+r2opts+'</select></div>'
     +'</div>'
+    +'</div>'
+    +'<div class="sm muted" style="margin-top:4px">読み＝点線／実際＝実線（点をドラッグ）</div>'
     +'<div class="taglab">読み（曲がり）</div><div class="frow" style="margin-top:4px; gap:6px">'+readBtn('フック')+readBtn('まっすぐ')+readBtn('スライス')+'</div>'
     +'<div class="taglab">結果①</div><div class="frow" style="margin-top:4px; gap:6px">'+r1Btn('in')+r1Btn('OK')+r1Btn('外れ')+'</div>'
     +'<div class="taglab">2ndパット以降のメモ（任意・音声可）</div>'
