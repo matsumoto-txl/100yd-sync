@@ -200,9 +200,11 @@
 /* ============ 定数 ============ */
 function baseClubs(){ return [['1W',250],['3W',230],['5W',210],['3U',190],['4U',180],['5I',170],['6I',160],['7I',150],['8I',140],['9I',130],['PW',120],['AW',100],['SW',80],['PT',20]].map(([name,dist])=>({name,dist})); }
 function baseDistOf(name){ const c=baseClubs().find(c=>c.name===name); return c?c.dist:0; }
+/* タグ3本：through.pre=状況（打つ前）／through.post=狙い（打つ前・意図/球筋/落とし所）。キーポイントは文章(note)。
+   approach.*・putt は旧データ互換のため残置（新UIでは未使用） */
 function defTags(){ return {
-  through:{ pre:['FW','ラフ','つま先上り','左足下り','向い風','フォロー','ピン奥','ピン手前','ベア','ディボット'],
-            post:['会心','ナイス','ダフリ','トップ','引っ掛け','プッシュ','スライス','ショート','オーバー','当り薄','OB','池ポチャ','林','バンカー','ロスト'] },
+  through:{ pre:['左足上がり','左足下り','つま先上がり','つま先下がり','打ち上げ','打ち下ろし','向い風','フォロー','ベア','ディボット','スタイミー','スイングできず'],
+            post:['安全','普通','勝負','無謀','フェード','ドロー','低い','高い','転がし','手前狙い','奥狙い','ピンデッド'] },
   approach:{ pre:['FW','ラフ','ベア','左足下り','向い風','ピン奥','ピン手前','夏芝','冬芝'],
              post:['会心','ナイス','ダフリ','トップ','引っ掛け','ショート','オーバー','スピン効いた','当り薄'] },
   putt:['厚く読みすぎ','薄く読みすぎ','ちょうど','思い通り','芯外し','パンチ','緩んだ','押し出し','ひっかけ'] }; }
@@ -225,7 +227,7 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.15.0';
+const APP_VERSION='2.16.0';
 const APP_BUILD='2026-10-16';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -562,10 +564,10 @@ function extractPrompt(noteText){ const t=DB.settings().tags, cn=clubNames(); co
     +'- yard は「その打を打つ前」の残り距離。lie/res は「その打の後」の結果。\n'
     +'- stage: ティー〜グリーンへの運び=through / グリーン周りの寄せ=approach / グリーン上のパット=putt。\n'
     +'- club は次からのみ選ぶ（無ければ null）: '+L(cn)+'\n'
-    +'- pre/post は各stageの下記「固定タグ」からのみ選ぶ。リストに無い言葉は絶対にpre/postへ入れず、note か leftover に日本語のまま残す（捨てない）。\n'
-    +'  through.pre='+L(t.through.pre)+' / through.post='+L(t.through.post)+'\n'
-    +'  approach.pre='+L(t.approach.pre)+' / approach.post='+L(t.approach.post)+'\n'
-    +'  putt のタグは post に入れる。putt.post='+L(t.putt)+'\n'
+    +'- pre=「状況」（打つ前の状況）、post=「狙い」（打つ前の狙い・意図・球筋・落とし所）。下記の固定タグからのみ選ぶ。\n'
+    +'  状況(pre)='+L(t.through.pre)+'\n'
+    +'  狙い(post)='+L(t.through.post)+'\n'
+    +'- リストに無い言葉（打った後の気づき・反省・結果の球筋など）は pre/post に入れず、その打の note（＝キーポイント）に日本語のまま残す（捨てない）。全体の総括は leftover へ。\n'
     +'- yard は through/approach の残り距離(数値)、dist はパットの歩数(整数)。\n'
     +'- 明示されていない項目は推測せず null / 空配列。順序はメモの記述順に従う。\n'
     +'メモ:\n'+noteText; }
@@ -631,8 +633,8 @@ function renderAiExtract(){ $('topsub').textContent='AI：打の解析'; $('topb
         +'<div class="taglab">タグ</div><div class="tags">'+chip(i,'post',m.putt,r.post)+'</div>'; }
       else { body='<div class="taglab">着弾</div><div class="liestrip">'+LIES.map(function(Lx){return '<div class="liebtn '+(r.lie===Lx?'on':'')+'" onclick="aiSetLie('+i+',\''+esc(Lx)+'\')">'+esc(Lx)+'</div>';}).join('')+'</div>'
         +'<div class="taglab">結果</div><div class="seg">'+[['〇','〇'],['-',''],['×','×'],['+1','+1'],['+2','+2']].map(function(p){return '<div class="segopt '+((r.res||'')===p[1]?'on':'')+'" onclick="aiSetRes('+i+',\''+p[1]+'\')">'+p[0]+'</div>';}).join('')+'</div>'
-        +'<div class="taglab">事前タグ</div><div class="tags">'+chip(i,'pre',m[r.stage].pre,r.pre)+'</div>'
-        +'<div class="taglab">事後タグ</div><div class="tags">'+chip(i,'post',m[r.stage].post,r.post)+'</div>'; }
+        +'<div class="taglab">状況</div><div class="tags">'+chip(i,'pre',m[r.stage].pre,r.pre)+'</div>'
+        +'<div class="taglab">狙い</div><div class="tags">'+chip(i,'post',m[r.stage].post,r.post)+'</div>'; }
     const conflict=stt.code==='conflict'?'<div class="frow" style="margin-top:8px; align-items:center"><span class="sm" style="color:var(--bad)">競合の扱い</span><div class="seg" style="flex:1"><div class="segopt '+(r.mode==='skip'?'on':'')+'" onclick="aiSetMode('+i+',\'skip\')">除外</div><div class="segopt '+(r.mode==='tagsonly'?'on':'')+'" onclick="aiSetMode('+i+',\'tagsonly\')">タグのみ追加</div><div class="segopt '+(r.mode==='overwrite'?'on':'')+'" onclick="aiSetMode('+i+',\'overwrite\')">上書き</div></div></div>':'';
     return '<div class="card" style="margin-bottom:8px; opacity:'+((r.use&&!over)?1:.5)+'">'
       +'<div class="frow" style="margin-top:0; align-items:center; gap:8px; flex-wrap:wrap">'
@@ -640,7 +642,7 @@ function renderAiExtract(){ $('topsub').textContent='AI：打の解析'; $('topb
       +'<b>'+(slot+1)+'打目</b>'+stageSel+clubSel
       +'<span class="sm" style="margin-left:auto; font-weight:800; color:'+col+'">'+esc(stt.label)+'</span></div>'
       +body
-      +(r.note?'<div class="sm muted" style="margin-top:6px">📝 メモへ退避: '+esc(r.note)+'</div>':'')
+      +(r.note?'<div class="sm muted" style="margin-top:6px">📝 キーポイントへ: '+esc(r.note)+'</div>':'')
       +conflict
       +(over?'<div class="sm" style="color:#999; margin-top:6px">※'+esc(stt.hint||'')+'</div>':'')
       +'</div>'; }).join('');
@@ -1079,11 +1081,12 @@ function renderAppSettings(){
   const clubRow=(c,i)=>`<div class="prow" data-si="${i}"><span class="drag">☰</span><input type="text" value="${esc(c.name)}" oninput="setAsClub(${i},this.value)" style="flex:1">
     <select onchange="setAsClubDist(${i},this.value)" style="min-width:82px">${clubDistOpts(c.dist)}</select>
     <button class="trash" style="min-width:40px" onclick="delAsClub(${i})">✕</button></div>`;
-  const TG=[['through.pre','ショット','実行前'],['through.post','ショット','実行〜結果'],['approach.pre','アプローチ','実行前'],['approach.post','アプローチ','実行〜結果'],['putt','パット','']];
-  const tagSection=([path,phase,sub])=>{ const arr=tagArr(a.tags,path); const id='newtag_'+path.replace(/\./g,'_');
+  const TG=[['through.pre','状況','打つ前'],['through.post','狙い','打つ前'],['putt','パット','']];
+  const defT=defTags();
+  const tagSection=([path,phase,sub])=>{ const arr=tagArr(a.tags,path), def=tagArr(defT,path)||[]; const id='newtag_'+path.replace(/\./g,'_');
     return `<div class="taghdr">${phase}${sub?' ／ '+sub:''}</div>
-      <div class="grid2" data-tagsort="${path}" style="margin-top:8px">${arr.map((t,i)=>`<div class="prow" data-si="${i}"><span class="drag">☰</span><span style="flex:1">${esc(t)}</span>
-        <button class="trash" style="min-width:40px" onclick="delAsTag('${path}',${i})">✕</button></div>`).join('')}</div>
+      <div class="grid2" data-tagsort="${path}" style="margin-top:8px">${arr.map((t,i)=>{ const added=def.indexOf(t)<0; return `<div class="prow" data-si="${i}"><span class="drag">☰</span><span style="flex:1${added?'; font-weight:800':''}">${added?'<span class="sm muted">＋</span> ':''}${esc(t)}</span>
+        <button class="trash" style="min-width:40px" onclick="delAsTag('${path}',${i})">✕</button></div>`;}).join('')}</div>
       <div class="addtag"><input type="text" id="${id}" placeholder="新しいタグ" onkeydown="if(event.key==='Enter'){event.preventDefault();addAsTag('${path}')}"><button onclick="addAsTag('${path}')">追加</button></div>`; };
   $('app').innerHTML=`
     <h2>ニックネーム</h2><div class="card"><input type="text" value="${esc(a.nickname)}" placeholder="例：自分" oninput="setAsNick(this.value)">
@@ -1094,7 +1097,7 @@ function renderAppSettings(){
     <h2>番手（☰でドラッグ並べ替え・飛距離）</h2><div class="card grid2" id="clubsort">${a.clubs.map(clubRow).join('')}
       <button class="ghostbtn" onclick="addAsClub()">＋ 番手を追加</button>
       <div class="sm muted">飛距離は、ショットでクラブを選んだときの残りヤードの初期値になります。</div></div>
-    <h2>タグ（並べ替え・追加・削除）</h2><div class="card" style="padding-top:2px">${TG.map(tagSection).join('')}</div>
+    <h2>タグ（並べ替え・追加・削除）</h2><div class="card" style="padding-top:2px"><div class="sm muted" style="margin:4px 0 2px">状況・狙いは打つ前のタグ。打った後の気づきは各ショットの「キーポイント（文章）」へ。<b>＋付き・太字＝自分で追加したタグ</b>。</div>${TG.map(tagSection).join('')}</div>
     <h2>設定のバックアップ／復元（ニックネーム・ティー・単位・番手・タグ）</h2><div class="card">
       <div style="display:flex; gap:8px; flex-wrap:wrap">
         <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="exportSettings()">📋 書き出す（ファイル＋コピー）</button>
@@ -1296,15 +1299,13 @@ function stageContent(){
       <div class="cname ${s.club?'':'non'}">${s.club?esc(s.club):'クラブ'}</div>${ydSel(i,s)}${resSel(i,s)}
       <button class="delx" onclick="delShot(${i})">✕</button></div>${strip(i,s)}${lieStrip(i,s)}</div>`;
   const detail=(s,i)=>`<div class="sdetail"><div class="sdhead">${i+1}打目${s.club?' ・ '+esc(s.club):''}${s.yard!=null?' ・ '+s.yard+uy:''}</div>
-      <div class="taglab">事前タグ</div>${tagGroup(i,'pre',s.pre)}
-      <div class="taglab">事後タグ</div>${tagGroup(i,'post',s.post)}
-      <div class="taglab">メモ</div><textarea placeholder="メモ" oninput="setNote(${i},this.value)">${esc(s.note)}</textarea></div>`;
+      <div class="taglab">状況（打つ前）</div>${tagGroup(i,'pre',s.pre)}
+      <div class="taglab">狙い（打つ前・安全/勝負＋球筋・落とし所）</div>${tagGroup(i,'post',s.post)}
+      <div class="taglab">キーポイント（打った後・自由記述）</div><textarea placeholder="気づき・反省・球筋など" oninput="setNote(${i},this.value)">${esc(s.note)}</textarea></div>`;
   return `<h2>ショット</h2>${arr.map(row).join('')}
     <div class="addrow"><button class="add" onclick="addShot()">＋ 1打追加</button><button class="rem" onclick="remLast()">△ 1打削除</button></div>
-    <h2>評価</h2><div class="card">
-      <div class="taglab" style="margin-top:0;">結果</div><div class="seg">${rOpts.map(([v,l])=>`<div class="segopt ${stg.eval.result===v?'on':''}" onclick="setEval('result','${v}')">${l}</div>`).join('')}</div>
-      <div class="taglab">意図</div><div class="seg">${CINTENT.map(([v,l])=>`<div class="segopt ${stg.eval.intent===v?'on':''}" onclick="setEval('intent','${v}')">${l}</div>`).join('')}</div>
-      <div class="taglab">ホールアウト（グリーン外で終了）</div><div class="seg"><div class="segopt ${OWN().putt.chipIn?'on':''}" onclick="setHoleOut('chipin')">チップイン</div><div class="segopt ${OWN().putt.okOn?'on':''}" onclick="setHoleOut('ok')">OK（寄せワン）</div></div></div>
+    <h2>ホールアウト（グリーン外で終了）</h2><div class="card">
+      <div class="seg" style="margin-top:0"><div class="segopt ${OWN().putt.chipIn?'on':''}" onclick="setHoleOut('chipin')">チップイン</div><div class="segopt ${OWN().putt.okOn?'on':''}" onclick="setHoleOut('ok')">OK（寄せワン）</div></div></div>
     <h2>1打ごとの詳細</h2>${arr.map(detail).join('')}`;
 }
 /* ===== パット ビジュアル入力（Phase1：同心ゾーン＋通過点ドラッグ） ===== */
