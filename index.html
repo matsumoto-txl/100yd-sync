@@ -227,8 +227,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.17.0';
-const APP_BUILD='2026-10-16';/*v2.17.0 パッティング深掘り*/
+const APP_VERSION='2.18.0';
+const APP_BUILD='2026-10-16';/*v2.18.0 失点分析ティー/運び細分*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -814,12 +814,12 @@ function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
   const GIR=reached && strokesToGreen<=Math.max(1,par-2);
   const is3=(puttScore!=null&&puttScore>=3), penTotal=shots.reduce((a,s)=>a+(s.pen||0),0);
   let A=0,B=0; shots.forEach(s=>{ const st=1+(s.pen||0); if(s.yard!=null&&s.yard<=100)B+=st; else A+=st; }); if(puttScore!=null)B+=puttScore;
-  let Eb=par, sg={long:0,short:0,putt:0,pen:0}, hasLie=shots.some(s=>s.lie);
+  let Eb=par, sg={tee:0,carry:0,short:0,putt:0,pen:0}, hasLie=shots.some(s=>s.lie);
   for(let i=0;i<shots.length;i++){ const s=shots[i], sy=s.yard; let Ea;
     if(s.lie==='ON'){ Ea=ePutt(fpd); }
     else if(s.lie==='OB・ペナ'){ const nx=shots[i+1]; Ea=nx?eLie(nx.yard,'FW'):par; }
     else { const nx=shots[i+1]; Ea=nx?eLie(nx.yard,s.lie):ePutt(fpd); }
-    const sgShot=Eb-Ea-1, cat=(sy!=null&&sy<=100)?'short':'long'; sg[cat]+=sgShot; sg.pen-=(s.pen||0); Eb=Ea; }
+    const sgShot=Eb-Ea-1, cat=(sy!=null&&sy<=100)?'short':((i===0&&par!==3)?'tee':'carry'); sg[cat]+=sgShot; sg.pen-=(s.pen||0); Eb=Ea; }
   if(puttScore!=null) sg.putt += Eb - puttScore;
   /* SGは「ショット＋ペナ＋パット＝実スコア」が一致する（詳細が完結した）ホールのみ。でないと合計がズレる */
   const detailStrokes=shots.length+penTotal+(puttScore||0);
@@ -832,7 +832,7 @@ function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
 function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sgOverPar:0,scoreSum:0,parSum:0,overPar:0,
     dist:{bl:0,par:0,bgy:0,dbl:0}, firOpp:0,firOk:0, gir:0, scrOpp:0,scrOk:0, sandOpp:0,sandOk:0,
     puttSum:0,puttHoles:0,three:0, girPutt:0,girPuttSum:0, pen:0, A:0,B:0,
-    sg:{long:0,short:0,putt:0,pen:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{} };
+    sg:{tee:0,carry:0,short:0,putt:0,pen:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{} };
   rounds.forEach(r=>{ const pid=ownerPid(r); r.holes.forEach(h=>{ const st=holeStat(h,pid); if(!st.ok)return; acc.holes++;
     acc.scoreSum+=st.man; acc.parSum+=st.par; acc.overPar+=st.overPar;
     const d=st.man-st.par; if(d<=-1)acc.dist.bl++; else if(d===0)acc.dist.par++; else if(d===1)acc.dist.bgy++; else acc.dist.dbl++;
@@ -841,7 +841,7 @@ function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sg
     if(st.sandOpp){ acc.sandOpp++; if(st.sandOk)acc.sandOk++; }
     if(st.putts!=null){ acc.puttSum+=st.putts; acc.puttHoles++; if(st.is3)acc.three++; if(st.GIR){acc.girPutt++; acc.girPuttSum+=st.putts;} }
     acc.pen+=st.penTotal; acc.A+=st.A; acc.B+=st.B;
-    if(st.sgOk){ acc.sgHoles++; acc.sgOverPar+=st.overPar; acc.sg.long+=st.sg.long; acc.sg.short+=st.sg.short; acc.sg.putt+=st.sg.putt; acc.sg.pen+=st.sg.pen; }
+    if(st.sgOk){ acc.sgHoles++; acc.sgOverPar+=st.overPar; acc.sg.tee+=st.sg.tee; acc.sg.carry+=st.sg.carry; acc.sg.short+=st.sg.short; acc.sg.putt+=st.sg.putt; acc.sg.pen+=st.sg.pen; }
     nonPuttShots(h).forEach(s=>{ if(!s.club)return; const c=acc.clubRes[s.club]||(acc.clubRes[s.club]={o:0,dash:0,x:0,pen:0,n:0}); c.n++; const v=s.res||''; if(v==='〇')c.o++; else if(v==='×')c.x++; else if(v==='+1'||v==='+2')c.pen++; else c.dash++; });
     if(st.approachYard!=null){ const y=st.approachYard, b=y<=50?'≤50y':y<=100?'51-100y':y<=150?'101-150y':'151y+'; const bb=acc.band[b]||(acc.band[b]={n:0,gir:0}); bb.n++; if(st.GIR)bb.gir++; }
     if(st.firstPutt){ const fp=st.firstPutt;
@@ -875,10 +875,10 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   const avgScore=(a.scoreSum/a.holes*18).toFixed(1);
   /* 失点分析（SG・1R平均・SG対象ホールのみ） */
   var sgNote=a.sgHoles<a.holes?('<div class="sm muted" style="margin-top:4px">※SG分解は着弾ライ＋パット数が揃った '+a.sgHoles+' ホールのみ（残りは未記録）</div>'):'';
-  var loss=[['ショット（運び）',-a.sg.long/nR,'#d95926'],['アプローチ（寄せ）',-a.sg.short/nR,'#ba7517'],['パット',-a.sg.putt/nR,'#ef9f27'],['ペナルティ',-a.sg.pen/nR,'#e24b4a']];
+  var loss=[['ティー',-a.sg.tee/nR,'#d95926'],['運び',-a.sg.carry/nR,'#c98500'],['アプローチ（寄せ）',-a.sg.short/nR,'#ba7517'],['パット',-a.sg.putt/nR,'#ef9f27'],['ペナルティ',-a.sg.pen/nR,'#e24b4a']];
   var maxLoss=Math.max(0.1,Math.max.apply(null,loss.map(function(x){return Math.abs(x[1]);})));
   var lossHtml=loss.map(function(x){ var w=Math.min(100,Math.abs(x[1])/maxLoss*100); var sign=x[1]>=0?'+':''; var col=x[1]>=0?x[2]:'#1d9e75'; return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:110px" class="sm muted">'+x[0]+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+w+'%; height:15px; border-radius:4px; background:'+col+'"></div></div><span style="width:46px; text-align:right; font-weight:800; color:'+(x[1]>0.05?'var(--bad)':x[1]<-0.05?'var(--good)':'var(--text)')+'">'+sign+x[1].toFixed(1)+'</span></div>'; });
-  var sgSection=(a.sgHoles>0)?('<h2>失点分析（1R平均・オーバーパー＝'+(-(a.sg.long+a.sg.short+a.sg.putt+a.sg.pen)/nR).toFixed(1)+'）</h2><div class="card">'+lossHtml.join('')+sgNote+'</div>'):'';
+  var sgSection=(a.sgHoles>0)?('<h2>失点分析（1R平均・オーバーパー＝'+(-(a.sg.tee+a.sg.carry+a.sg.short+a.sg.putt+a.sg.pen)/nR).toFixed(1)+'）</h2><div class="card">'+lossHtml.join('')+sgNote+'</div>'):'';
   /* 100y見出し */
   var hundred='<h2>100yの境目（1R平均）</h2><div class="frow" style="gap:10px">'
     +'<div class="card" style="flex:1; text-align:center"><div class="sm muted">100y以内に運ぶまで</div><div style="font-size:24px; font-weight:800">'+(a.A/nR).toFixed(1)+'<span class="sm">打</span></div></div>'
