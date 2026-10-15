@@ -227,8 +227,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.16.0';
-const APP_BUILD='2026-10-16';
+const APP_VERSION='2.17.0';
+const APP_BUILD='2026-10-16';/*v2.17.0 パッティング深掘り*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -797,6 +797,8 @@ function eLie(y,lie){ if(y==null)y=30; if(lie==='花道'||lie==='カラー')retu
 const EPUTT=[[1,1.10],[2,1.25],[3,1.45],[4,1.61],[6,1.80],[8,1.87],[12,2.00],[16,2.10],[20,2.20]];
 function ePutt(st){ if(st==null)return 2.0; st=+st; if(st<=EPUTT[0][0])return EPUTT[0][1]; const L=EPUTT[EPUTT.length-1]; if(st>=L[0])return L[1];
   for(let k=0;k<EPUTT.length-1;k++){ if(st>=EPUTT[k][0]&&st<=EPUTT[k+1][0]){ const t=(st-EPUTT[k][0])/(EPUTT[k+1][0]-EPUTT[k][0]); return EPUTT[k][1]+t*(EPUTT[k+1][1]-EPUTT[k][1]); } } return 2.0; }
+/* 1stパット距離帯（単位そのまま。歩前提の刻み。パッティング深掘り用） */
+function puttBand(d){ d=+d; if(d<=1)return {k:'b1',lab:'≤1',ord:1}; if(d<=3)return {k:'b2',lab:'2-3',ord:2}; if(d<=6)return {k:'b3',lab:'4-6',ord:3}; if(d<=10)return {k:'b4',lab:'7-10',ord:4}; return {k:'b5',lab:'11+',ord:5}; }
 /* 1ホールの事実＋SG分解。owner/スコア無しは ok:false */
 function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
   if(!o||man==null) return {ok:false};
@@ -822,14 +824,15 @@ function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
   /* SGは「ショット＋ペナ＋パット＝実スコア」が一致する（詳細が完結した）ホールのみ。でないと合計がズレる */
   const detailStrokes=shots.length+penTotal+(puttScore||0);
   const sgOk=(hasLie && puttScore!=null && shots.length>0 && detailStrokes===man);
+  const firstPutt=(first&&(first.r1||first.zone))?{dist:(first.dist!=null?+first.dist:null),read:first.read||'',r1:first.r1||'',r2:(first.r2||0)}:null;
   return {ok:true, par, man, overPar:man-par, FIR, firApplicable, GIR, reached, strokesToGreen,
     scrambleOpp:!GIR, scrambleOk:(man<=par), sandOpp, sandOk:(man<=par),
-    putts:puttScore, is3, penTotal, A, B, sg, sgOk, approachYard}; }
+    putts:puttScore, is3, penTotal, A, B, sg, sgOk, approachYard, firstPutt}; }
 /* 複数ラウンドを集計 */
 function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sgOverPar:0,scoreSum:0,parSum:0,overPar:0,
     dist:{bl:0,par:0,bgy:0,dbl:0}, firOpp:0,firOk:0, gir:0, scrOpp:0,scrOk:0, sandOpp:0,sandOk:0,
     puttSum:0,puttHoles:0,three:0, girPutt:0,girPuttSum:0, pen:0, A:0,B:0,
-    sg:{long:0,short:0,putt:0,pen:0}, clubRes:{}, band:{} };
+    sg:{long:0,short:0,putt:0,pen:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{} };
   rounds.forEach(r=>{ const pid=ownerPid(r); r.holes.forEach(h=>{ const st=holeStat(h,pid); if(!st.ok)return; acc.holes++;
     acc.scoreSum+=st.man; acc.parSum+=st.par; acc.overPar+=st.overPar;
     const d=st.man-st.par; if(d<=-1)acc.dist.bl++; else if(d===0)acc.dist.par++; else if(d===1)acc.dist.bgy++; else acc.dist.dbl++;
@@ -841,6 +844,10 @@ function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sg
     if(st.sgOk){ acc.sgHoles++; acc.sgOverPar+=st.overPar; acc.sg.long+=st.sg.long; acc.sg.short+=st.sg.short; acc.sg.putt+=st.sg.putt; acc.sg.pen+=st.sg.pen; }
     nonPuttShots(h).forEach(s=>{ if(!s.club)return; const c=acc.clubRes[s.club]||(acc.clubRes[s.club]={o:0,dash:0,x:0,pen:0,n:0}); c.n++; const v=s.res||''; if(v==='〇')c.o++; else if(v==='×')c.x++; else if(v==='+1'||v==='+2')c.pen++; else c.dash++; });
     if(st.approachYard!=null){ const y=st.approachYard, b=y<=50?'≤50y':y<=100?'51-100y':y<=150?'101-150y':'151y+'; const bb=acc.band[b]||(acc.band[b]={n:0,gir:0}); bb.n++; if(st.GIR)bb.gir++; }
+    if(st.firstPutt){ const fp=st.firstPutt;
+      if(fp.dist!=null){ const pb=puttBand(fp.dist); const ob=acc.pbBand[pb.k]||(acc.pbBand[pb.k]={lab:pb.lab,ord:pb.ord,n:0,in:0}); ob.n++; if(fp.r1==='in')ob.in++; }
+      if(fp.r1==='外れ'){ acc.prox.sum+=Math.abs(fp.r2); acc.prox.n++; }
+      if(fp.read){ const rx=acc.readx[fp.read]||(acc.readx[fp.read]={n:0,in:0,ok:0,miss:0}); rx.n++; if(fp.r1==='in')rx.in++; else if(fp.r1==='OK')rx.ok++; else if(fp.r1==='外れ')rx.miss++; } }
   }); }); return acc; }
 /* 目安（目標スコア帯・§6） */
 const BENCH={fir:{100:38,90:48,80:57}, gir:{100:18,90:30,80:45}, scr:{100:22,90:32,80:42}, sand:{100:12,90:22,80:33}, putt:{100:2.0,90:1.9,80:1.8}, three:{100:17,90:12,80:8}};
@@ -907,9 +914,20 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   var bands=['≤50y','51-100y','101-150y','151y+'].filter(function(b){return a.band[b];});
   var bandHtml=bands.map(function(b){ var bb=a.band[b]; var p=Math.round(bb.gir/bb.n*100); return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:72px" class="sm muted">'+b+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+p+'%; height:15px; border-radius:4px; background:#378add"></div></div><span style="width:62px; text-align:right" class="sm muted">'+p+'% ('+bb.n+')</span></div>'; }).join('');
   var bandSec=bands.length?('<h2>距離帯別パーオン率</h2><div class="card">'+bandHtml+'</div>'):'';
+  /* パッティング深掘り（新1stパット：距離帯別1パット率・近接度・読み別結果） */
+  var pbKeys=Object.keys(a.pbBand).sort(function(x,y){return a.pbBand[x].ord-a.pbBand[y].ord;});
+  var pbHtml=pbKeys.map(function(k){ var o=a.pbBand[k], p=Math.round(o.in/o.n*100); return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:62px" class="sm muted">'+o.lab+u+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+p+'%; height:15px; border-radius:4px; background:#1d9e75"></div></div><span style="width:70px; text-align:right" class="sm muted">'+p+'% ('+o.in+'/'+o.n+')</span></div>'; }).join('');
+  var proxV=a.prox.n?(a.prox.sum/a.prox.n).toFixed(1):null;
+  var reads=['フック','まっすぐ','スライス'].filter(function(r){return a.readx[r];});
+  var readHtml=reads.map(function(r){ var o=a.readx[r]; var seg=[[o.in,'#1d9e75'],[o.ok,'#378add'],[o.miss,'#e24b4a']].map(function(p){ var w=p[0]/o.n*100; return w>0?'<div style="width:'+w+'%; background:'+p[1]+'"></div>':''; }).join(''); return '<div class="frow" style="margin-top:8px; align-items:center; gap:8px"><span style="width:52px; font-weight:800" class="sm">'+r+'</span><div style="flex:1; display:flex; height:15px; border-radius:4px; overflow:hidden">'+seg+'</div><span style="width:72px; text-align:right" class="sm muted">in '+Math.round(o.in/o.n*100)+'% ('+o.n+')</span></div>'; }).join('');
+  var hasPB=pbKeys.length||a.prox.n||reads.length;
+  var puttDeep=hasPB?('<h2>パッティング深掘り（1stパット）</h2>'
+    +(pbKeys.length?('<div class="card"><div class="sm muted" style="margin-bottom:2px">距離帯別 1パット率（沈めた＝in）</div>'+pbHtml+'</div>'):'')
+    +(proxV!=null?('<div class="card"><div class="frow" style="margin:0; justify-content:space-between"><span class="sm muted">外した後の平均残り（近接度）</span><span class="sm muted">'+a.prox.n+'回</span></div><div style="font-size:22px; font-weight:800">'+proxV+u+'</div></div>'):'')
+    +(reads.length?('<div class="card"><div class="sm muted" style="margin-bottom:2px">読み別の結果</div>'+readHtml+'<div class="sm muted" style="margin-top:8px"><span style="color:#1d9e75">in</span> / <span style="color:#378add">OK</span> / <span style="color:#e24b4a">外れ</span></div></div>'):'')):'';
   $('app').innerHTML=head
     +'<div class="sm muted" style="margin:0 4px 10px">対象 '+rounds.length+'ラウンド・'+a.holes+'ホール</div>'
-    +sgSection+hundred+core+scoreSec+clubSec+bandSec+'<div style="height:24px"></div>';
+    +sgSection+hundred+core+scoreSec+clubSec+bandSec+puttDeep+'<div style="height:24px"></div>';
 }
 
 /* ============ ホーム ============ */
