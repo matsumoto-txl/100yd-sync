@@ -118,6 +118,14 @@
   .cstrip{ display:flex; gap:6px; overflow-x:auto; padding:2px 0 6px; -webkit-overflow-scrolling:touch; }
   .cbtn{ flex:0 0 auto; min-width:48px; text-align:center; padding:12px 6px; border:1px solid var(--border); border-radius:10px; background:var(--surface2); font-weight:800; font-size:15px; cursor:pointer; }
   .cbtn.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .sfrom{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .sfrom b{ color:var(--text); font-weight:800; }
+  .sfrom.warn{ color:var(--bad); }
+  .sfrom.warn select{ margin-left:6px; width:auto; padding:6px 24px 6px 10px; }
+  .lielab{ font-size:11px; color:var(--muted); margin:6px 0 2px; }
+  .liestrip{ display:flex; flex-wrap:wrap; gap:4px; padding:0 0 2px; }
+  .liebtn{ flex:0 0 auto; padding:7px 11px; border:1px solid var(--border); border-radius:999px; background:var(--surface2); color:var(--text); font-weight:700; font-size:13px; cursor:pointer; }
+  .liebtn.on{ background:var(--teal); border-color:var(--teal); color:#04302a; }
   .reseg{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .ro{ padding:11px 16px; border:1px solid var(--border); border-radius:10px; background:var(--surface2); font-weight:800; font-size:14px; cursor:pointer; }
   .ro.on{ background:var(--teal); border-color:var(--teal); color:#04302a; }
@@ -204,6 +212,9 @@ const CINTENT=[['safe','安全'],['normal','普通'],['attack','勝負'],['reckl
 const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','スライス','まっすぐ'];
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['putt','パット']];
+/* 着弾ライ（固定選択・方向は持たない）。着弾＝次打の from に継承。OB・ペナの次は from を手入力（連鎖の例外） */
+const LIES=['FW','ラフ','バンカー','ON','花道','カラー','OB・ペナ','林・他'];
+const FROM_AFTER_OB=['特設ティー','打ち直し','ドロップ'];
 /* パット ビジュアル入力：9エリア（止まった位置）＋読み点線＋実際の実線。セルは 70x70。中央 c:1=カップ付近 */
 const PZG='#F1EFE8',PZGs='#D3D1C7',PZK='#E1F5EE',PZKs='#5DCAA5';
 const PUTBALL={x:150,y:350}, PUTCUP={x:150,y:155};
@@ -213,7 +224,7 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.13.7';
+const APP_VERSION='2.14.0';
 const APP_BUILD='2026-10-15';
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
@@ -647,7 +658,7 @@ function aiApply(){ const ax=aiExtract; if(!ax||!ax.rows)return;
 /* ============ モデル ============ */
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function parOn(par){ return Math.max(1, par-2); }
-function mkShot(){ return {club:null,pen:0,res:'',pre:[],post:[],note:'',yard:null}; }
+function mkShot(){ return {club:null,pen:0,res:'',pre:[],post:[],note:'',yard:null,lie:null,fromManual:null}; }
 function mkPutt(){ return {dist:null,effDist:null,slopeV:null,slopeH:null,result:null,exec:null,touch:0,tags:[],zone:null,slope:0,line:null}; }
 function mkOwner(par){ return {
   through:{ shots:[...Array(parOn(par))].map(mkShot), eval:{result:null,intent:null}, res:null, remain:null },
@@ -1043,6 +1054,10 @@ function penAdj(i,d){ const s=shots()[i]; s.pen=Math.max(0,Math.min(5,(s.pen||0)
 /* ショット結果：〇・-・×（良し悪し）＋ +1/+2（ペナルティ加算）。+1,+2 のとき pen に反映。"-"は空欄扱い */
 function setShotRes(i,v){ const s=shots()[i]; s.res=v; s.pen=(v==='+1'?1:v==='+2'?2:0); save(); render(); }
 function setShotYard(i,v){ shots()[i].yard=(v===''?null:+v); save(); }
+/* 着弾ライ：トグル選択。着弾は次打の from に継承（表示は render で算出） */
+function setLie(i,v){ const s=shots()[i]; s.lie=(s.lie===v?null:v); save(); render(); }
+/* OB・ペナの次打：from を手入力（特設ティー等）。連鎖の例外 */
+function setFromManual(i,v){ shots()[i].fromManual=(v===''?null:v); save(); render(); }
 function addShot(){ const a=shots(); const s=mkShot();
   if(S.stage==='through'){
     if(a.length===0){ s.yard = H().yard; }
@@ -1095,9 +1110,19 @@ function stageContent(){
   const resSel=(i,s)=>{ const cur=s.res||''; let o=resOpts.map(([lab,val])=>`<option value="${val}" ${(cur===val||(val===''&&cur==='-'))?'selected':''}>${lab}</option>`).join('');
     if(cur&&cur!=='-'&&!resOpts.some(p=>p[1]===cur)) o+=`<option value="${esc(cur)}" selected>${esc(cur)}</option>`; /* 旧データ(◎/△等)を再選択まで保持 */
     return `<select class="ressel ${(s.res==='+1'||s.res==='+2')?'act':''}" onchange="setShotRes(${i},this.value)">${o}</select>`; };
-  const row=(s,i)=>`<div class="srow"><div class="srowhead"><div class="seq">${i+1}</div>
+  /* from 表示：初手=tee／通常=前打の着弾を継承／前打がOB・ペナなら from を手入力 */
+  const fromRow=(i)=>{
+    if(i===0) return `<div class="sfrom">from <b>tee</b></div>`;
+    const prev=arr[i-1];
+    if(prev && prev.lie==='OB・ペナ'){ const cur=arr[i].fromManual||'';
+      return `<div class="sfrom warn">OB・ペナの次：from <select onchange="setFromManual(${i},this.value)"><option value="">選択</option>`
+        +FROM_AFTER_OB.map(o=>`<option value="${o}" ${cur===o?'selected':''}>${o}</option>`).join('')+`</select></div>`; }
+    return `<div class="sfrom">from <b>${(prev&&prev.lie)?esc(prev.lie):'—'}</b></div>`;
+  };
+  const lieStrip=(i,s)=>`<div class="lielab">着弾</div><div class="liestrip">`+LIES.map(L=>`<div class="liebtn ${s.lie===L?'on':''}" onclick="setLie(${i},'${esc(L)}')">${esc(L)}</div>`).join('')+`</div>`;
+  const row=(s,i)=>`<div class="srow">${fromRow(i)}<div class="srowhead"><div class="seq">${i+1}</div>
       <div class="cname ${s.club?'':'non'}">${s.club?esc(s.club):'クラブ'}</div>${ydSel(i,s)}${resSel(i,s)}
-      <button class="delx" onclick="delShot(${i})">✕</button></div>${strip(i,s)}</div>`;
+      <button class="delx" onclick="delShot(${i})">✕</button></div>${strip(i,s)}${lieStrip(i,s)}</div>`;
   const detail=(s,i)=>`<div class="sdetail"><div class="sdhead">${i+1}打目${s.club?' ・ '+esc(s.club):''}${s.yard!=null?' ・ '+s.yard+uy:''}</div>
       <div class="taglab">事前タグ</div>${tagGroup(i,'pre',s.pre)}
       <div class="taglab">事後タグ</div>${tagGroup(i,'post',s.post)}
