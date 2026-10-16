@@ -229,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.22.0';
-const APP_BUILD='2026-10-16';/*v2.22.0 コードレビュー採用15件（read未指定/puttScore補完/9H全par/esc/復元対称/パット単位対応/デバウンス 他）*/
+const APP_VERSION='2.24.0';
+const APP_BUILD='2026-10-16';/*v2.24.0 意図（安全/普通/勝負/無謀）入力をショット画面に復活（v2.16.0で消えた分・非破壊/既存setEval・CINTENT・evalを再利用）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -1454,6 +1454,8 @@ function stageContent(){
     <div class="addrow"><button class="add" onclick="addShot()">＋ 1打追加</button><button class="rem" onclick="remLast()">△ 1打削除</button></div>
     <h2>ホールアウト（グリーン外で終了）</h2><div class="card">
       <div class="seg" style="margin-top:0"><div class="segopt ${OWN().putt.chipIn?'on':''}" onclick="setHoleOut('chipin')">チップイン</div><div class="segopt ${OWN().putt.okOn?'on':''}" onclick="setHoleOut('ok')">OK（寄せワン）</div></div></div>
+    <h2>意図</h2><div class="card">
+      <div class="seg" style="margin-top:0">${CINTENT.map(([v,l])=>`<div class="segopt ${stg.eval.intent===v?'on':''}" onclick="setEval('intent','${v}')">${l}</div>`).join('')}</div></div>
     <h2>1打ごとの詳細</h2>${arr.map(detail).join('')}`;
 }
 /* ===== パット ビジュアル入力（Phase1：同心ゾーン＋通過点ドラッグ） ===== */
