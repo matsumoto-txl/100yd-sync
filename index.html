@@ -227,8 +227,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.18.0';
-const APP_BUILD='2026-10-16';/*v2.18.0 失点分析ティー/運び細分*/
+const APP_VERSION='2.19.0';
+const APP_BUILD='2026-10-16';/*v2.19.0 100y境目をpar別+9H合成・完全記録ホールのみ*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -831,8 +831,9 @@ function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
 /* 複数ラウンドを集計 */
 function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sgOverPar:0,scoreSum:0,parSum:0,overPar:0,
     dist:{bl:0,par:0,bgy:0,dbl:0}, firOpp:0,firOk:0, gir:0, scrOpp:0,scrOk:0, sandOpp:0,sandOk:0,
-    puttSum:0,puttHoles:0,three:0, girPutt:0,girPuttSum:0, pen:0, A:0,B:0,
-    sg:{tee:0,carry:0,short:0,putt:0,pen:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{} };
+    puttSum:0,puttHoles:0,three:0, girPutt:0,girPuttSum:0, pen:0,
+    sg:{tee:0,carry:0,short:0,putt:0,pen:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{},
+    hb:{3:{A:0,B:0,n:0},4:{A:0,B:0,n:0},5:{A:0,B:0,n:0}} };
   rounds.forEach(r=>{ const pid=ownerPid(r); r.holes.forEach(h=>{ const st=holeStat(h,pid); if(!st.ok)return; acc.holes++;
     acc.scoreSum+=st.man; acc.parSum+=st.par; acc.overPar+=st.overPar;
     const d=st.man-st.par; if(d<=-1)acc.dist.bl++; else if(d===0)acc.dist.par++; else if(d===1)acc.dist.bgy++; else acc.dist.dbl++;
@@ -840,8 +841,9 @@ function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sg
     if(st.scrambleOpp){ acc.scrOpp++; if(st.scrambleOk)acc.scrOk++; }
     if(st.sandOpp){ acc.sandOpp++; if(st.sandOk)acc.sandOk++; }
     if(st.putts!=null){ acc.puttSum+=st.putts; acc.puttHoles++; if(st.is3)acc.three++; if(st.GIR){acc.girPutt++; acc.girPuttSum+=st.putts;} }
-    acc.pen+=st.penTotal; acc.A+=st.A; acc.B+=st.B;
-    if(st.sgOk){ acc.sgHoles++; acc.sgOverPar+=st.overPar; acc.sg.tee+=st.sg.tee; acc.sg.carry+=st.sg.carry; acc.sg.short+=st.sg.short; acc.sg.putt+=st.sg.putt; acc.sg.pen+=st.sg.pen; }
+    acc.pen+=st.penTotal;
+    if(st.sgOk){ acc.sgHoles++; acc.sgOverPar+=st.overPar; acc.sg.tee+=st.sg.tee; acc.sg.carry+=st.sg.carry; acc.sg.short+=st.sg.short; acc.sg.putt+=st.sg.putt; acc.sg.pen+=st.sg.pen;
+      if(acc.hb[st.par]){ acc.hb[st.par].A+=st.A; acc.hb[st.par].B+=st.B; acc.hb[st.par].n++; } }
     nonPuttShots(h).forEach(s=>{ if(!s.club)return; const c=acc.clubRes[s.club]||(acc.clubRes[s.club]={o:0,dash:0,x:0,pen:0,n:0}); c.n++; const v=s.res||''; if(v==='〇')c.o++; else if(v==='×')c.x++; else if(v==='+1'||v==='+2')c.pen++; else c.dash++; });
     if(st.approachYard!=null){ const y=st.approachYard, b=y<=50?'≤50y':y<=100?'51-100y':y<=150?'101-150y':'151y+'; const bb=acc.band[b]||(acc.band[b]={n:0,gir:0}); bb.n++; if(st.GIR)bb.gir++; }
     if(st.firstPutt){ const fp=st.firstPutt;
@@ -879,10 +881,19 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   var maxLoss=Math.max(0.1,Math.max.apply(null,loss.map(function(x){return Math.abs(x[1]);})));
   var lossHtml=loss.map(function(x){ var w=Math.min(100,Math.abs(x[1])/maxLoss*100); var sign=x[1]>=0?'+':''; var col=x[1]>=0?x[2]:'#1d9e75'; return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:110px" class="sm muted">'+x[0]+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+w+'%; height:15px; border-radius:4px; background:'+col+'"></div></div><span style="width:46px; text-align:right; font-weight:800; color:'+(x[1]>0.05?'var(--bad)':x[1]<-0.05?'var(--good)':'var(--text)')+'">'+sign+x[1].toFixed(1)+'</span></div>'; });
   var sgSection=(a.sgHoles>0)?('<h2>失点分析（1R平均・オーバーパー＝'+(-(a.sg.tee+a.sg.carry+a.sg.short+a.sg.putt+a.sg.pen)/nR).toFixed(1)+'）</h2><div class="card">'+lossHtml.join('')+sgNote+'</div>'):'';
-  /* 100y見出し */
-  var hundred='<h2>100yの境目（1R平均）</h2><div class="frow" style="gap:10px">'
-    +'<div class="card" style="flex:1; text-align:center"><div class="sm muted">100y以内に運ぶまで</div><div style="font-size:24px; font-weight:800">'+(a.A/nR).toFixed(1)+'<span class="sm">打</span></div></div>'
-    +'<div class="card" style="flex:1; text-align:center"><div class="sm muted">100y以内から</div><div style="font-size:24px; font-weight:800">'+(a.B/nR).toFixed(1)+'<span class="sm">打</span></div></div></div>';
+  /* 100y見出し（完全記録ホール＝sgOk のみ・par別1ホールあたり＋9H合成） */
+  function hbAvg(o){ return (o&&o.n)?{A:o.A/o.n,B:o.B/o.n,n:o.n}:null; }
+  var av3=hbAvg(a.hb[3]), av4=hbAvg(a.hb[4]), av5=hbAvg(a.hb[5]);
+  function hbRow(lab,av,bold){ var w=bold?'font-weight:800':'', A=av?av.A.toFixed(2):'—', B=av?av.B.toFixed(2):'—', n=av?av.n+'件':'0件';
+    return '<div class="frow" style="margin-top:7px; align-items:center"><span style="width:52px; '+w+'" class="sm">'+lab+'</span>'
+      +'<span style="flex:1; text-align:center; '+w+'">'+A+'</span><span style="flex:1; text-align:center; '+w+'">'+B+'</span>'
+      +'<span style="width:46px; text-align:right" class="sm muted">'+n+'</span></div>'; }
+  var a9=(av3?av3.A*2:0)+(av4?av4.A*5:0)+(av5?av5.A*2:0), b9=(av3?av3.B*2:0)+(av4?av4.B*5:0)+(av5?av5.B*2:0);
+  var hbHead='<div class="frow" style="margin:0; align-items:center"><span style="width:52px" class="sm muted"></span><span style="flex:1; text-align:center" class="sm muted">運ぶまで</span><span style="flex:1; text-align:center" class="sm muted">100y以内から</span><span style="width:46px" class="sm muted"></span></div>';
+  var hb9='<div class="frow" style="margin-top:10px; padding-top:9px; border-top:1px solid var(--border); align-items:center"><span style="width:52px; font-weight:800">9H</span><span style="flex:1; text-align:center; font-weight:800; font-size:17px">'+a9.toFixed(1)+'</span><span style="flex:1; text-align:center; font-weight:800; font-size:17px">'+b9.toFixed(1)+'</span><span style="width:46px" class="sm muted"></span></div>';
+  var hundred=(a.sgHoles>0)?('<h2>100yの境目（完全記録ホールのみ・1ホールあたり）</h2><div class="card">'+hbHead+hbRow('par3',av3)+hbRow('par4',av4)+hbRow('par5',av5)+hb9
+    +'<div class="sm muted" style="margin-top:8px">9H＝標準構成（par3×2・par4×5・par5×2）で合成。単位＝打。件数が少ない par はブレます。</div></div>')
+    :'<h2>100yの境目</h2><div class="card sm muted">着弾ライ＋パット数が揃ったホール（完全記録）がまだありません。</div>';
   /* コア指標＋目安 */
   function metric(lab,val,unit,bench,higher){ if(val==null)return '<div class="card" style="padding:12px"><div class="sm muted">'+lab+'</div><div style="font-size:22px; font-weight:800; color:var(--muted)">—</div></div>';
     var ok=higher?(val>=bench):(val<=bench); var mark=ok?'<span style="color:var(--good)">達成</span>':'<span style="color:var(--amber)">目安未満</span>';
