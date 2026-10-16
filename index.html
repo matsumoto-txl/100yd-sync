@@ -211,6 +211,9 @@ function defTags(){ return {
 /* defTags の不足分を「起動時に1回だけ」端末へ配る版数。defTags に基本タグを増やしたら、この数を上げて再配布する。 */
 const TAGS_SEED_VER=1;
 const LV=[[1,'Lv1 パットのみ'],[2,'Lv2 100y以内'],[3,'Lv3 フル']];
+const CRESULT=[['best','最高'],['ok','合格'],['meh','イマイチ'],['ng','NG']];
+const ARESULT=[['in','in'],['ok','OK'],['meh','イマイチ'],['ng','NG']];
+const CINTENT=[['safe','安全'],['normal','普通'],['attack','勝負'],['reckless','無謀']];
 const SLOPEV=['上り','下り','フラット']; const SLOPEH=['フック','スライス','まっすぐ'];
 const PRESULT=['カップイン','OK','外れ']; const EXECV=['ナイス','まずまず','ミス'];
 const STAGES=[['through','ショット'],['putt','パット']];
@@ -226,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.23.0';
-const APP_BUILD='2026-10-16';/*v2.23.0 旧「評価（結果/意図）」ブロックの撤去（デッドコード掃除・非破壊）*/
+const APP_VERSION='2.22.0';
+const APP_BUILD='2026-10-16';/*v2.22.0 コードレビュー採用15件（read未指定/puttScore補完/9H全par/esc/復元対称/パット単位対応/デバウンス 他）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -304,8 +307,8 @@ function pendingLegacy(){ const v2=new Set(DB.index().map(x=>x.id)); return lega
 function convOwner(oo){ if(!oo) return null;
   const SV={up:'上り',down:'下り',flat:'フラット'}, SH={hook:'フック',slice:'スライス',straight:'まっすぐ'};
   const PR={in:'カップイン',ok:'OK',miss:'外れ'}, EX={3:'ナイス',2:'まずまず',1:'ミス'};
-  const through={shots:[],res:null,remain:null};
-  const approach={shots:[]};
+  const through={shots:[],eval:{result:null,intent:null},res:null,remain:null};
+  const approach={shots:[],eval:{result:null,intent:null}};
   const RTG={4:'最高',3:'合格',2:'イマイチ',0:'NG'}, RAP={4:'in/OK',3:'合格',2:'イマイチ',1:'イマイチ',0:'NG'}, INl={safe:'安全',attack:'勝負',reckless:'無謀',normal:'普通'};
   (oo.shots||[]).forEach(s=>{ const isA=s.phase==='approach';
     const bits=[]; if(s.result!=null)bits.push('結果:'+((isA?RAP:RTG)[s.result]||s.result)); if(s.intent)bits.push('意図:'+(INl[s.intent]||s.intent));
@@ -452,8 +455,10 @@ function buildRoundText(r){ const lines=[]; const t=selfTotal(r), d=detailScore(
     if(sc)lines.push('  スコア: '+sc+(h.puttScore!=null?'（パット'+h.puttScore+'）':''));
     if(own){ const sl=(s,i)=>['  '+(i+1)+'.', s.pen?'ペナ+'+s.pen:'', s.club||'', s.yard!=null?s.yard+'y':'', (s.pre||[]).concat(s.post||[]).join('・'), s.note||''].filter(Boolean).join(' ');
       if(own.through.shots.length){ lines.push(' ［ショット］'); own.through.shots.forEach((s,i)=>lines.push(sl(s,i))); }
-      if(own.through.res)lines.push('  道中結果: '+(own.through.res==='on'?'ON':'アプローチ'));
-      if(own.approach.shots.length){ lines.push(' ［アプローチ］'); own.approach.shots.forEach((s,i)=>lines.push(sl(s,i))); }
+      const te=[own.through.eval.result?'結果'+labPair(CRESULT,own.through.eval.result):'', own.through.eval.intent?'意図'+labPair(CINTENT,own.through.eval.intent):'', own.through.res?'道中結果:'+(own.through.res==='on'?'ON':'アプローチ'):''].filter(Boolean).join(' / ');
+      if(te)lines.push('  評価: '+te);
+      if(own.approach.shots.length){ lines.push(' ［アプローチ］'); own.approach.shots.forEach((s,i)=>lines.push(sl(s,i)));
+        const ae=[own.approach.eval.result?'結果'+labPair(ARESULT,own.approach.eval.result):'', own.approach.eval.intent?'意図'+labPair(CINTENT,own.approach.eval.intent):''].filter(Boolean).join(' / '); if(ae)lines.push('  評価: '+ae); }
       const pt=own.putt; if(pt.num>0||pt.okOn||pt.details.some(x=>x.result)){ lines.push(' ［パット］計'+puttCount(h)+'（打'+pt.num+(pt.okOn?'+OK':'')+'）');
         pt.details.forEach((dd,i)=>lines.push(['  '+(i+1)+'.', dd.dist!=null?dd.dist+pu:'', dd.effDist!=null?'込'+dd.effDist:'', dd.slopeV||'', dd.slopeH||'', dd.result||'', dd.exec?'実行'+dd.exec:'', dd.touch?'タッチ'+(dd.touch>0?'+':'')+dd.touch:'', (dd.tags||[]).join('・')].filter(Boolean).join(' '))); }
     }
@@ -752,8 +757,8 @@ function parOn(par){ return Math.max(1, par-2); }
 function mkShot(){ return {club:null,pen:0,res:'',pre:[],post:[],note:'',yard:null,lie:null,fromManual:null}; }
 function mkPutt(){ return {dist:null,effDist:null,slopeV:null,slopeH:null,result:null,exec:null,touch:0,tags:[],zone:null,slope:0,line:null}; }
 function mkOwner(par){ return {
-  through:{ shots:[...Array(parOn(par))].map(mkShot), res:null, remain:null },
-  approach:{ shots:[] },
+  through:{ shots:[...Array(parOn(par))].map(mkShot), eval:{result:null,intent:null}, res:null, remain:null },
+  approach:{ shots:[], eval:{result:null,intent:null} },
   putt:{ okOn:false, chipIn:false, num:0, details:[], first:null, note2:'' } }; }
 function playersOf(names){ return names.map((n,i)=>({id:'p'+(i+1),name:(n||'').trim(),owner:i===0})).filter((p,i)=>i===0||p.name); }
 function clubDist(name){ const c=DB.settings().clubs.find(c=>c.name===name); return c?c.dist:null; }
@@ -824,7 +829,7 @@ function selfTotal(r){ const pid=ownerPid(r); let s=0,any=false; r.holes.forEach
 function detailScore(r){ let s=0,a=0,p=0,any=false; r.holes.forEach(h=>{ if(h.owner){ s+=throughCount(h); a+=approachCount(h); p+=puttCount(h); any=true; } }); return any?{s,a,p,tot:s+a+p}:null; }
 function hasDetailInput(h){ if(!h.owner)return false; const o=h.owner;
   const shotF=o.through.shots.some(s=>s.club||s.pen||s.res||(s.pre&&s.pre.length)||(s.post&&s.post.length)||s.note) || o.approach.shots.length>0;
-  const evalF=o.through.res;
+  const evalF=o.through.eval.result||o.through.eval.intent||o.through.res||o.approach.eval.result||o.approach.eval.intent;
   const puttF=o.putt.num>0||o.putt.okOn||o.putt.chipIn||(o.putt.first&&(o.putt.first.r1||o.putt.first.zone))||o.putt.note2||o.putt.details.some(d=>d.result||d.exec||d.zone)||h.puttScore!=null;
   return !!(shotF||evalF||puttF); }
 function scoreMismatch(h){ const pid=ownerPid(S.round); const man=h.scores[pid];
@@ -1395,6 +1400,8 @@ function setNote(i,v){ shots()[i].note=v; saveDebounced(); }
 function setHoleNote(v){ H().note=v; saveDebounced(); }
 function setRes(r){ const t=OWN().through; t.res=(t.res===r?null:r); save(); render(); }
 function setRemain(v){ OWN().through.remain=+v; save(); }
+function setEval(kind,v){ const e=stgObj().eval; e[kind]=(e[kind]===v?null:v);
+  if(S.stage==='approach'&&kind==='result'){ OWN().putt.okOn=(e.result==='ok'); } save(); render(); }
 /* ホールアウト種別：チップイン=ショットで沈めた(パット0)／OK=寄せワン(ギミー1パット)。排他トグル */
 function setHoleOut(kind){ const p=OWN().putt;
   if(kind==='chipin'){ p.chipIn=!p.chipIn; if(p.chipIn)p.okOn=false; }
@@ -1417,7 +1424,7 @@ function tagGroup(i,kind,selected){ const master=DB.settings().tags[S.stage][kin
   return `<div class="tags">${chips}</div><div class="addtag"><input type="text" id="shottag_${kind}_${i}" placeholder="＋タグ追加" onkeydown="if(event.key==='Enter'){event.preventDefault();addTagInput(${i},'${kind}')}"><button onclick="addTagInput(${i},'${kind}')">追加</button></div>`; }
 function stageContent(){
   if(S.stage==='putt') return puttContent();
-  const stg=stgObj(), arr=stg.shots, isT=S.stage==='through';
+  const stg=stgObj(), arr=stg.shots, isT=S.stage==='through', rOpts=isT?CRESULT:ARESULT;
   const clubs=DB.settings().clubs, uy=DB.settings().units.toGreen;
   const strip=(i,s)=>`<div class="cstrip" data-idx="${i}">${clubs.map(c=>`<div class="cbtn ${s.club===c.name?'on':''}" data-club="${esc(c.name)}" onclick="pickClub(${i},'${esc(c.name)}')">${esc(c.name)}</div>`).join('')}</div>`;
   const ydSel=(i,s)=>`<select class="ydbox" onchange="setShotYard(${i},this.value)">${shotYardOpts(s.yard)}</select>`;
@@ -1546,7 +1553,9 @@ function renderDetail(){
   /* 整合性 */
   let appSt='', puttSt='';
   if(own){ const res=own.through.res, aN=cnt.approach;
-    if(res==='on') appSt=aN>=1?'warn':'dim'; else if(res==='approach') appSt=aN===0?'warn':''; }
+    if(res==='on') appSt=aN>=1?'warn':'dim'; else if(res==='approach') appSt=aN===0?'warn':'';
+    const ares=own.approach.eval.result, pN=puttCount(h);
+    if(ares==='in') puttSt=pN>=1?'warn':'dim'; else if(ares==='ok') puttSt=(pN===1?'dim':'warn'); }
   const st={approach:appSt,putt:puttSt};
   const tab=([k,l])=> av[k]?`<div class="stab ${S.stage===k?'on':''}" onclick="setStage('${k}')">${l}<span class="cbadge ${st[k]||''}">${cnt[k]}${st[k]==='warn'?'！':''}</span></div>`:'';
   const hn=(S.round.course.halves[h.half]&&S.round.course.halves[h.half].name)||(h.half===0?'OUT':'IN');
