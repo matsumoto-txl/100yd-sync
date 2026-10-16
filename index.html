@@ -208,6 +208,8 @@ function defTags(){ return {
   approach:{ pre:['FW','ラフ','ベア','左足下り','向い風','ピン奥','ピン手前','夏芝','冬芝'],
              post:['会心','ナイス','ダフリ','トップ','引っ掛け','ショート','オーバー','スピン効いた','当り薄'] },
   putt:['厚く読みすぎ','薄く読みすぎ','ちょうど','思い通り','芯外し','パンチ','緩んだ','押し出し','ひっかけ'] }; }
+/* defTags の不足分を「起動時に1回だけ」端末へ配る版数。defTags に基本タグを増やしたら、この数を上げて再配布する。 */
+const TAGS_SEED_VER=1;
 const LV=[[1,'Lv1 パットのみ'],[2,'Lv2 100y以内'],[3,'Lv3 フル']];
 const CRESULT=[['best','最高'],['ok','合格'],['meh','イマイチ'],['ng','NG']];
 const ARESULT=[['in','in'],['ok','OK'],['meh','イマイチ'],['ng','NG']];
@@ -227,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.20.0';
-const APP_BUILD='2026-10-16';/*v2.20.0 コースマスター化（施設×9h・自動保存・流し込み）*/
+const APP_VERSION='2.21.0';
+const APP_BUILD='2026-10-16';/*v2.21.0 基本タグの不足分を起動時に1回配布（seed）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -1589,7 +1591,27 @@ function ensureSettingsBackup(){ try{
     if((main===null||main==='') && bak){ localStorage.setItem(NS+'settings', bak); window.__settingsRestored=true; }
     else if(main && !bak){ localStorage.setItem(SBAK, main); localStorage.setItem(SBAK+'.at', new Date().toISOString()); }
   }catch(e){} }
+/* 基本タグの不足分を起動時に1回だけ端末へ配る（seedバージョン方式・非破壊）。
+   ・既存のユーザー追加タグ・過去ラウンドの記録は一切触らない（追加のみ）。
+   ・一度配った後にユーザーが消したタグは復活しない（tagsSeedVer を上げた時だけ再配布）。
+   ・settings 未作成の端末は defTags が初期値なので何もしない。 */
+function seedTagsIfNeeded(){ try{
+    const raw=localStorage.getItem(NS+'settings'); if(!raw) return;
+    const s=JSON.parse(raw); if(!s||typeof s!=='object') return;
+    if((s.tagsSeedVer||0) >= TAGS_SEED_VER) return;
+    const def=defTags(), isObj=o=>o&&typeof o==='object'&&!Array.isArray(o);
+    const add=(dst,src)=>{ if(!Array.isArray(dst))return; (src||[]).forEach(t=>{ if(dst.indexOf(t)<0)dst.push(t); }); };
+    if(isObj(s.tags)){
+      if(isObj(s.tags.through)){ add(s.tags.through.pre,def.through.pre); add(s.tags.through.post,def.through.post); }
+      if(isObj(s.tags.approach)){ add(s.tags.approach.pre,def.approach.pre); add(s.tags.approach.post,def.approach.post); }
+      add(s.tags.putt,def.putt);
+    }
+    s.tagsSeedVer=TAGS_SEED_VER;
+    const j=JSON.stringify(s); localStorage.setItem(NS+'settings', j);
+    try{ localStorage.setItem(SBAK, j); localStorage.setItem(SBAK+'.at', new Date().toISOString()); }catch(e){}
+  }catch(e){} }
 ensureSettingsBackup();
+seedTagsIfNeeded();
 render();
 if(window.__settingsRestored) setTimeout(function(){ alert('設定が初期値に戻っていたため、バックアップから自動復元しました。（ニックネーム・ティー距離・単位・番手・タグ）'); },150);
 
