@@ -200,11 +200,11 @@
 /* ============ 定数 ============ */
 function baseClubs(){ return [['1W',250],['3W',230],['5W',210],['3U',190],['4U',180],['5I',170],['6I',160],['7I',150],['8I',140],['9I',130],['PW',120],['AW',100],['SW',80],['PT',20]].map(([name,dist])=>({name,dist})); }
 function baseDistOf(name){ const c=baseClubs().find(c=>c.name===name); return c?c.dist:0; }
-/* タグ3本：through.pre=状況（打つ前）／through.post=狙い（打つ前・意図/球筋/落とし所）。キーポイントは文章(note)。
+/* タグ3本：through.pre=状況（打つ前）／through.post=狙い（打つ前・球筋/落とし所）。意図(安全/普通/勝負/無謀)はホールごと＝eval.intent(CINTENT)へ分離（v2.25.0）。キーポイントは文章(note)。
    approach.*・putt は旧データ互換のため残置（新UIでは未使用） */
 function defTags(){ return {
   through:{ pre:['左足上がり','左足下り','つま先上がり','つま先下がり','打ち上げ','打ち下ろし','向い風','フォロー','ベア','ディボット','スタイミー','スイングできず'],
-            post:['安全','普通','勝負','無謀','フェード','ドロー','低い','高い','転がし','手前狙い','奥狙い','ピンデッド'] },
+            post:['フェード','ドロー','低い','高い','転がし','手前狙い','奥狙い','ピンデッド'] },
   approach:{ pre:['FW','ラフ','ベア','左足下り','向い風','ピン奥','ピン手前','夏芝','冬芝'],
              post:['会心','ナイス','ダフリ','トップ','引っ掛け','ショート','オーバー','スピン効いた','当り薄'] },
   putt:['厚く読みすぎ','薄く読みすぎ','ちょうど','思い通り','芯外し','パンチ','緩んだ','押し出し','ひっかけ'] }; }
@@ -229,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.24.0';
-const APP_BUILD='2026-10-16';/*v2.24.0 意図（安全/普通/勝負/無謀）入力をショット画面に復活（v2.16.0で消えた分・非破壊/既存setEval・CINTENT・evalを再利用）*/
+const APP_VERSION='2.25.0';
+const APP_BUILD='2026-10-16';/*v2.25.0 意図をホールごとに一本化：狙いタグ(defTags.through.post)から 安全/普通/勝負/無謀 を除去（非破壊＝既存端末の設定・過去記録は温存/SEED_VER据置）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -1448,7 +1448,7 @@ function stageContent(){
       <button class="delx" onclick="delShot(${i})">✕</button></div>${strip(i,s)}${lieStrip(i,s)}</div>`;
   const detail=(s,i)=>`<div class="sdetail"><div class="sdhead">${i+1}打目${s.club?' ・ '+esc(s.club):''}${s.yard!=null?' ・ '+s.yard+uy:''}</div>
       <div class="taglab">状況（打つ前）</div>${tagGroup(i,'pre',s.pre)}
-      <div class="taglab">狙い（打つ前・安全/勝負＋球筋・落とし所）</div>${tagGroup(i,'post',s.post)}
+      <div class="taglab">狙い（打つ前・球筋・落とし所）</div>${tagGroup(i,'post',s.post)}
       <div class="taglab">キーポイント（打った後・自由記述）</div><textarea placeholder="気づき・反省・球筋など" oninput="setNote(${i},this.value)">${esc(s.note)}</textarea></div>`;
   return `<h2>ショット</h2>${arr.map(row).join('')}
     <div class="addrow"><button class="add" onclick="addShot()">＋ 1打追加</button><button class="rem" onclick="remLast()">△ 1打削除</button></div>
