@@ -229,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.26.0';
-const APP_BUILD='2026-10-18';/*v2.26.0 スタッツ改修：目標をコア指標直前へ移動／失点分析を横向きウォーターフォール（原点0・ゲインは左）＋ペナをカテゴリ配分&内訳表示／9hあたりオーバーパー表記*/
+const APP_VERSION='2.27.0';
+const APP_BUILD='2026-10-18';/*v2.27.0 スタッツ配色/表現：ティーをティー(ショット)とペナルティに分離／色=ペナ赤・ロス黄・ゲイン緑／「簡易SG分解」に統一／クラブ別は×黄・ペナ赤／スコア内訳はバーディ青・パー緑*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -933,24 +933,27 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   const avgScore=(a.scoreSum/a.holes*18).toFixed(1);
   /* 失点分析（SG・9hあたり・SG対象ホールのみ・横向きウォーターフォール） */
   var per9=9/Math.max(1,a.sgHoles);
-  var sgNote='<div class="sm muted" style="margin-top:8px">9hあたり＝合計×9÷記録ホール数。'+(a.sgHoles<a.holes?'SG分解は着弾ライ＋パット数が揃った '+a.sgHoles+' ホールのみ（残りは未記録）。':'')+'</div>';
-  var wcats=[{lab:'ティー',v:-a.sg.tee*per9,pen:a.sgPen.tee*per9},{lab:'運び',v:-a.sg.carry*per9,pen:a.sgPen.carry*per9},{lab:'アプローチ（寄せ）',v:-a.sg.short*per9,pen:a.sgPen.short*per9},{lab:'パット',v:-a.sg.putt*per9,pen:0}];
+  var sgNote='<div class="sm muted" style="margin-top:8px">9hあたり＝合計×9÷記録ホール数。別項目にしたペナは<b>ティーショットのみ</b>（「ティー（ペナ）」）。運び・アプローチの罰はそれぞれの項目に含みます（赤で内訳表示）。'+(a.sgHoles<a.holes?'簡易SG分解は着弾ライ＋パット数が揃った '+a.sgHoles+' ホールのみ（残りは未記録）。':'')+'</div>';
+  /* ティーだけ「ティー（ショット）」と「ペナルティ」に分離。色＝ペナ赤／ロス黄／ゲイン緑 */
+  var teeShot=-(a.sg.tee+a.sgPen.tee)*per9, teePen=a.sgPen.tee*per9;
+  var wcats=[{lab:'ティー',v:teeShot,pen:0,kind:'shot'},{lab:'ティー（ペナ）',v:teePen,pen:0,kind:'pen'},{lab:'運び',v:-a.sg.carry*per9,pen:a.sgPen.carry*per9,kind:'shot'},{lab:'アプローチ（寄せ）',v:-a.sg.short*per9,pen:a.sgPen.short*per9,kind:'shot'},{lab:'パット',v:-a.sg.putt*per9,pen:0,kind:'shot'}];
+  var C_PEN='#d9534f', C_LOSS='#e0a800', C_GAIN='#1d9e75';
   var wcum=[0]; wcats.forEach(function(c){ wcum.push(wcum[wcum.length-1]+c.v); }); var wtot=wcum[wcum.length-1];
   var wallp=wcum.concat([0]); var wmin=Math.min.apply(null,wallp), wmax=Math.max.apply(null,wallp);
   var wpad=Math.max(0.3,(wmax-wmin)*0.08); wmin-=wpad; wmax+=wpad; var wr=Math.max(0.1,wmax-wmin); var zpct=(0-wmin)/wr*100;
-  function wfRow(lab,prev,cur,pen,bold){ var lo=Math.min(prev,cur),hi=Math.max(prev,cur),isLoss=cur>prev;
-    var left=(lo-wmin)/wr*100, w=Math.max(0.6,(hi-lo)/wr*100); var col=bold?'#6b7280':(isLoss?'#d9534f':'#1d9e75');
+  function wfRow(lab,prev,cur,pen,bold,kind){ var lo=Math.min(prev,cur),hi=Math.max(prev,cur),isLoss=cur>prev;
+    var left=(lo-wmin)/wr*100, w=Math.max(0.6,(hi-lo)/wr*100); var col=bold?'#6b7280':(kind==='pen'?C_PEN:(isLoss?C_LOSS:C_GAIN));
     var zline='<div style="position:absolute; top:-3px; bottom:-3px; left:'+zpct+'%; width:1px; background:var(--border)"></div>';
     var bar='<div style="position:absolute; top:0; left:'+left+'%; width:'+w+'%; height:100%; background:'+col+'; border-radius:3px"></div>';
-    var penSeg=''; if(isLoss&&pen>0.05){ var pc=Math.min(pen,hi-lo), pw=pc/wr*100, pl=(hi-pc-wmin)/wr*100; penSeg='<div style="position:absolute; top:0; left:'+pl+'%; width:'+pw+'%; height:100%; background:#8a2420; border-radius:0 3px 3px 0"></div>'; }
-    var dv=cur-prev, val=(dv>=0?'+':'')+dv.toFixed(1), vcol=dv>0.05?'var(--bad)':dv<-0.05?'var(--good)':'var(--text)';
-    var penTxt=(pen>0.05)?'<div style="color:#b5362f; font-size:11px; line-height:1.1">ペナ +'+pen.toFixed(1)+'</div>':'';
+    var penSeg=''; if(kind!=='pen'&&isLoss&&pen>0.05){ var pc=Math.min(pen,hi-lo), pw=pc/wr*100, pl=(hi-pc-wmin)/wr*100; penSeg='<div style="position:absolute; top:0; left:'+pl+'%; width:'+pw+'%; height:100%; background:'+C_PEN+'; border-radius:0 3px 3px 0"></div>'; }
+    var dv=cur-prev, val=(dv>=0?'+':'')+dv.toFixed(1), vcol=bold?'var(--text)':(kind==='pen'?C_PEN:(dv>0.05?C_LOSS:dv<-0.05?'var(--good)':'var(--text)'));
+    var penTxt=(kind!=='pen'&&pen>0.05)?'<div style="color:'+C_PEN+'; font-size:11px; line-height:1.1">ペナ +'+pen.toFixed(1)+'</div>':'';
     return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:96px'+(bold?'; font-weight:800':'')+'" class="sm'+(bold?'':' muted')+'">'+lab+'</span>'
       +'<div style="flex:1; position:relative; height:18px; background:var(--surface2); border-radius:4px">'+zline+bar+penSeg+'</div>'
       +'<span style="width:60px; text-align:right"><div style="font-weight:800; color:'+vcol+'">'+val+'</div>'+penTxt+'</span></div>'; }
-  var wfRows=wcats.map(function(c,i){ return wfRow(c.lab,wcum[i],wcum[i+1],c.pen,false); }).join('');
+  var wfRows=wcats.map(function(c,i){ return wfRow(c.lab,wcum[i],wcum[i+1],c.pen,false,c.kind); }).join('');
   var wfTotal='<div style="margin-top:9px; padding-top:8px; border-top:1px solid var(--border)">'+wfRow('合計',0,wtot,0,true)+'</div>';
-  var wfLegend='<div class="sm muted" style="margin-top:8px">右＝失点／左＝取り戻し（ゲイン）／縦線＝0／<span style="color:#8a2420">■</span>ペナ分</div>';
+  var wfLegend='<div class="sm muted" style="margin-top:8px">右＝失点／左＝取り戻し（ゲイン）／縦線＝0／<span style="color:'+C_PEN+'">■</span>ペナ ・ <span style="color:'+C_LOSS+'">■</span>ロス ・ <span style="color:'+C_GAIN+'">■</span>ゲイン</div>';
   var sgSection=(a.sgHoles>0)?('<h2>失点分析（記録'+a.sgHoles+'ホール・9hあたりオーバーパー＝'+(a.sgOverPar*per9).toFixed(1)+'）</h2><div class="card">'+wfRows+wfTotal+wfLegend+sgNote+'</div>'):'';
   /* 100y見出し（完全記録ホール＝sgOk のみ・par別1ホールあたり＋9H合成） */
   function hbAvg(o){ return (o&&o.n)?{A:o.A/o.n,B:o.B/o.n,n:o.n}:null; }
@@ -985,15 +988,15 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
     +'<div class="card" style="padding:12px"><div class="sm muted">ペナルティ / R</div><div style="font-size:22px; font-weight:800">'+(a.pen/nR).toFixed(1)+'</div></div>'
     +'</div>';
   /* スコア内訳 */
-  var dT=a.holes, dseg=[['バーディ以下',a.dist.bl,'#1d9e75'],['パー',a.dist.par,'#378add'],['ボギー',a.dist.bgy,'#c98500'],['ダボ+',a.dist.dbl,'#d95926']];
+  var dT=a.holes, dseg=[['バーディ以下',a.dist.bl,'#378add'],['パー',a.dist.par,'#1d9e75'],['ボギー',a.dist.bgy,'#c98500'],['ダボ+',a.dist.dbl,'#d95926']];
   var distBar=dseg.map(function(x){ var w=dT?x[1]/dT*100:0; return w>0?'<div style="width:'+w+'%; background:'+x[2]+'"></div>':''; }).join('');
   var distLeg=dseg.map(function(x){ return '<span class="sm muted" style="margin-right:12px"><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:'+x[2]+'; vertical-align:middle; margin-right:4px"></span>'+x[0]+' '+(x[1]/nR).toFixed(1)+'/R</span>'; }).join('');
   var scoreSec='<h2>スコア内訳（1R平均スコア '+avgScore+'）</h2><div class="card"><div style="display:flex; height:20px; border-radius:6px; overflow:hidden">'+distBar+'</div><div style="margin-top:8px">'+distLeg+'</div></div>';
   /* クラブ別〇率 */
   var clubs=DB.settings().clubs.map(function(c){return c.name;}).filter(function(c){ return a.clubRes[c]&&a.clubRes[c].n>0; });
-  var clubHtml=clubs.map(function(c){ var r=a.clubRes[c], n=r.n; var seg=[[r.o,'#1d9e75'],[r.dash,'#888780'],[r.x,'#e24b4a'],[r.pen,'#c98500']].map(function(p){ var w=p[0]/n*100; return w>0?'<div style="width:'+w+'%; background:'+p[1]+'"></div>':''; }).join('');
+  var clubHtml=clubs.map(function(c){ var r=a.clubRes[c], n=r.n; var seg=[[r.o,'#1d9e75'],[r.dash,'#888780'],[r.x,'#e0a800'],[r.pen,'#d9534f']].map(function(p){ var w=p[0]/n*100; return w>0?'<div style="width:'+w+'%; background:'+p[1]+'"></div>':''; }).join('');
     return '<div class="frow" style="margin-top:8px; align-items:center; gap:8px"><span style="width:36px; font-weight:800">'+esc(c)+'</span><div style="flex:1; display:flex; height:15px; border-radius:4px; overflow:hidden">'+seg+'</div><span style="width:40px; text-align:right" class="sm muted">'+Math.round(r.o/n*100)+'%</span></div>'; }).join('');
-  var clubSec=clubs.length?('<h2>クラブ別ナイス率（〇/-/×/+）</h2><div class="card">'+clubHtml+'<div class="sm muted" style="margin-top:8px"><span style="color:#1d9e75">〇</span> / <span style="color:#888780">-</span> / <span style="color:#e24b4a">×</span> / <span style="color:#c98500">+1,+2</span></div></div>'):'';
+  var clubSec=clubs.length?('<h2>クラブ別ナイス率（〇/-/×/+）</h2><div class="card">'+clubHtml+'<div class="sm muted" style="margin-top:8px"><span style="color:#1d9e75">〇</span> / <span style="color:#888780">-</span> / <span style="color:#e0a800">×</span> / <span style="color:#d9534f">+1,+2</span></div></div>'):'';
   /* 距離帯別GIR */
   var bands=['≤50y','51-100y','101-150y','151y+'].filter(function(b){return a.band[b];});
   var bandHtml=bands.map(function(b){ var bb=a.band[b]; var p=Math.round(bb.gir/bb.n*100); return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:72px" class="sm muted">'+b+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+p+'%; height:15px; border-radius:4px; background:#378add"></div></div><span style="width:62px; text-align:right" class="sm muted">'+p+'% ('+bb.n+')</span></div>'; }).join('');
