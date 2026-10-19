@@ -229,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.28.0';
-const APP_BUILD='2026-10-18';/*v2.28.0 コースマスターにJSON取り込み/書き出しを追加（コース編集画面・非破壊add-onlyマージ・配列/{courses}/バックアップJSONを受容）*/
+const APP_VERSION='2.28.1';
+const APP_BUILD='2026-10-20';/*v2.28.1 修正：コース編集のヤードプルダウン(yardOpts)が5yグリッド外の現在値を選択肢に補うように（取り込んだ1y精度の距離が80yに化けて見える不具合）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -821,7 +821,9 @@ function distOpts(cur){ const vals=[]; for(let v=1;v<=20;v++)vals.push(v); for(l
 function shotYardOpts(cur){ const vals=[]; for(let v=0;v<=20;v++)vals.push(v); for(let v=25;v<=600;v+=5)vals.push(v);
   if(cur!=null&&!vals.includes(cur)){ vals.push(cur); vals.sort((a,b)=>a-b); }
   let o='<option value="">−y</option>'; vals.forEach(v=>o+=`<option value="${v}" ${cur===v?'selected':''}>${v}y</option>`); return o; }
-function yardOpts(cur){ let o=''; for(let v=80;v<=620;v+=5)o+=`<option value="${v}" ${v===cur?'selected':''}>${v}y</option>`; return o; }
+function yardOpts(cur){ const vals=[]; for(let v=80;v<=620;v+=5)vals.push(v); cur=(cur!=null&&cur!=='')?+cur:null;
+  if(cur!=null&&!vals.includes(cur)){ vals.push(cur); vals.sort((a,b)=>a-b); } /* 取り込んだ1y値など5yグリッド外も選択肢に補う */
+  return vals.map(v=>`<option value="${v}" ${v===cur?'selected':''}>${v}y</option>`).join(''); }
 function clubDistOpts(cur){ const vals=[]; for(let v=0;v<=350;v+=5)vals.push(v); if(cur!=null&&!vals.includes(cur)){ vals.push(cur); vals.sort((a,b)=>a-b); }
   return vals.map(v=>`<option value="${v}" ${v===cur?'selected':''}>${v}y</option>`).join(''); }
 function stepOpts(cur){ const vals=[]; for(let v=0;v<=3;v+=0.5)vals.push(v); for(let v=4;v<=30;v++)vals.push(v);
