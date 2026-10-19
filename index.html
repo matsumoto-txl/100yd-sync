@@ -229,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.27.0';
-const APP_BUILD='2026-10-18';/*v2.27.0 スタッツ配色/表現：ティーをティー(ショット)とペナルティに分離／色=ペナ赤・ロス黄・ゲイン緑／「簡易SG分解」に統一／クラブ別は×黄・ペナ赤／スコア内訳はバーディ青・パー緑*/
+const APP_VERSION='2.28.0';
+const APP_BUILD='2026-10-18';/*v2.28.0 コースマスターにJSON取り込み/書き出しを追加（コース編集画面・非破壊add-onlyマージ・配列/{courses}/バックアップJSONを受容）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -299,6 +299,37 @@ function mergeCoursesFromRestore(incoming){ try{
       if(!fac.nines.some(n=>(n.name||'').trim()===nn)) fac.nines.push({id:inn.id||cmUid('n-'), name:nn, pars:(inn.pars||[]).slice(0,9), yards:(inn.yards||[]).slice(0,9)}); }); });
   DB.saveCourses(list);
 }catch(e){} }
+/* コース情報のインポート（JSON・非破壊）／エクスポート。編集中の coursesEdit に add-only でマージし、ユーザーが「保存」で確定 */
+function extractCourses(j){ /* 寛容に取り出す：配列／{courses:[]}／バックアップ{data:{"golf.v2.courses":"..."}} */
+  try{ if(Array.isArray(j)) return j;
+    if(j && Array.isArray(j.courses)) return j.courses;
+    if(j && j.data && j.data['golf.v2.courses']) return JSON.parse(j.data['golf.v2.courses'])||[];
+    if(j && typeof j['golf.v2.courses']==='string') return JSON.parse(j['golf.v2.courses'])||[];
+  }catch(e){} return []; }
+function cmMergeInto(inc){ if(!coursesEdit)coursesEdit=[]; const st=DB.settings(); let addF=0,addN=0;
+  (inc||[]).forEach(function(ic){ var nm=((ic&&ic.name)||'').trim(); if(!nm)return;
+    var fac=coursesEdit.find(function(c){return (c.name||'').trim()===nm;});
+    if(!fac){ fac={id:cmUid('c-'), name:nm, nines:[]}; coursesEdit.push(fac); addF++; }
+    (ic.nines||[]).forEach(function(inn){ var nn=((inn&&inn.name)||'').trim(); if(!nn)return;
+      var pars=(inn.pars||[]).slice(0,9).map(function(p){return +p;});
+      if(pars.length<9 || pars.some(function(p){return !(p>=3&&p<=6);})) return; /* 妥当なPar9個のみ */
+      var yards=(inn.yards||[]).slice(0,9).map(function(y){return (y!=null&&y!=='')?+y:null;});
+      for(var i=0;i<9;i++){ if(yards[i]==null||isNaN(yards[i])) yards[i]=st.teeDefault[pars[i]]||350; }
+      if(!fac.nines.some(function(n){return (n.name||'').trim()===nn;})){ fac.nines.push({id:inn.id||cmUid('n-'), name:nn, pars:pars, yards:yards}); addN++; }
+    }); });
+  return {addF:addF, addN:addN}; }
+function cmImportFile(){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange=function(){ const f=inp.files&&inp.files[0]; if(!f)return; const rd=new FileReader();
+    rd.onload=function(){ let j; try{ j=JSON.parse(rd.result); }catch(e){ alert('JSONを読み込めませんでした'); return; }
+      var inc=extractCourses(j); if(!inc.length){ alert('コースデータが見つかりませんでした。形式をご確認ください。'); return; }
+      var res=cmMergeInto(inc); render();
+      alert('取り込みました（施設'+res.addF+'件・9h'+res.addN+'個を追加／既存は不変）。内容を確認し「保存」で確定してください。'); };
+    rd.readAsText(f); };
+  inp.click(); }
+function cmExportFile(){ try{ var arr=coursesEdit||DB.courses();
+  var blob=new Blob([JSON.stringify({app:'100yd-sync-courses', exported:todayStr(), courses:arr},null,2)],{type:'application/json'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='100yd-sync-courses-'+todayStr()+'.json'; document.body.appendChild(a); a.click(); a.remove();
+}catch(e){ alert('書き出しに失敗しました'); } }
 
 /* ============ 旧データ（golf.*）復元 ============ */
 function legacyRounds(){ try{ return JSON.parse(localStorage.getItem('golf.rounds')||'[]'); }catch(e){ return []; } }
@@ -1285,6 +1316,8 @@ function renderCourses(){ const list=coursesEdit||[];
       <button class="ghostbtn" style="margin-top:8px" onclick="cmAddNine(${ci})">＋ 9h（nine）を追加</button>`; };
   $('app').innerHTML=`
     <div class="card" style="border-color:var(--accent); background:rgba(79,140,255,.06)"><div class="sm">9hごとに Par・距離を保存します。1施設に9hを複数束ねると <b>18h=2つ・27h=3つ・36h=4つ</b> に対応します。<br>ここでの編集は<b>今後のラウンド設定の流し込み用</b>です。<b>過去のラウンド記録には影響しません</b>（各ラウンドは開始時の値を保持）。</div></div>
+    <div class="frow" style="gap:8px; margin:0 0 4px"><button class="ghostbtn" style="flex:1" onclick="cmImportFile()">📥 JSONから取り込み</button><button class="ghostbtn" style="flex:1" onclick="cmExportFile()">📤 JSONで書き出し</button></div>
+    <div class="sm muted" style="margin:0 2px 8px">取り込みは<b>非破壊</b>（同名の施設・9hは追加せず既存を維持）。内容を確認してから「保存」で確定します。形式：<code>{"courses":[{"name":"○○CC","nines":[{"name":"OUT","pars":[4,4,3,5,4,4,3,5,4],"yards":[350,…9個…]}]}]}</code>（配列のみ・バックアップJSONも可）。</div>
     ${list.length?list.map((_,ci)=>facBlock(ci)).join(''):'<div class="card"><div class="sm muted">まだコースマスターがありません。ラウンドを開始/保存すると自動で保存されます。手動で作るには下のボタンから。</div></div>'}
     <div style="margin-top:14px"><button class="ghostbtn" onclick="cmAddFac()">＋ 施設を追加</button></div>`;
   $('topsub').textContent='コースマスター';
