@@ -229,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.28.1';
-const APP_BUILD='2026-10-20';/*v2.28.1 修正：コース編集のヤードプルダウン(yardOpts)が5yグリッド外の現在値を選択肢に補うように（取り込んだ1y精度の距離が80yに化けて見える不具合）*/
+const APP_VERSION='2.29.0';
+const APP_BUILD='2026-10-20';/*v2.29.0 UI：コースマスターを「施設一覧→施設編集（9h×複数）」の2画面に分割／アプリ設定を項目ごとに折りたたみ（トグルで表示/非表示・状態は端末保存・初期は畳む）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -1233,6 +1233,11 @@ function moveTag(path,i,d){ const a=tagArr(appset.tags,path), j=i+d; if(j<0||j>=
 function addAsTag(path){ const el=$('newtag_'+path.replace(/\./g,'_')); const v=(el&&el.value||'').trim(); if(!v)return;
   const a=tagArr(appset.tags,path); if(!a.includes(v))a.push(v); render(); }
 function unitRow(label,key,opts){ return `<div class="setline"><span class="slab">${label}</span><div class="seg" style="flex:1">${opts.map(u=>`<div class="segopt ${appset.units[key]===u?'on':''}" style="min-width:52px" onclick="setAsUnit('${key}','${u}')">${u}</div>`).join('')}</div></div>`; }
+/* アプリ設定：セクション折りたたみ（トグルで表示/非表示・状態は端末に保存・初期は畳む） */
+let appsetAcc=(function(){ try{ return JSON.parse(localStorage.getItem('golf.v2.ui.appsetAcc')||'{}')||{}; }catch(e){ return {}; } })();
+function toggleAsSec(key){ appsetAcc[key]=!appsetAcc[key]; try{ localStorage.setItem('golf.v2.ui.appsetAcc', JSON.stringify(appsetAcc)); }catch(e){} render(); }
+function asSec(key,title,body){ var open=!!appsetAcc[key];
+  return '<h2 onclick="toggleAsSec(\''+key+'\')" style="cursor:pointer; display:flex; align-items:center; gap:7px"><span style="font-size:12px; color:var(--muted); width:12px; display:inline-block">'+(open?'▾':'▸')+'</span>'+title+'</h2>'+(open?body:''); }
 function renderAppSettings(){
   const a=appset;
   const teeRow=par=>`<div class="setline"><span class="slab">Par ${par}</span><select onchange="setAsTee(${par},this.value)">${yardOpts(a.teeDefault[par])}</select></div>`;
@@ -1246,83 +1251,114 @@ function renderAppSettings(){
       <div class="grid2" data-tagsort="${path}" style="margin-top:8px">${arr.map((t,i)=>{ const added=def.indexOf(t)<0; return `<div class="prow" data-si="${i}"><span class="drag">☰</span><span style="flex:1${added?'; font-weight:800':''}">${added?'<span class="sm muted">＋</span> ':''}${esc(t)}</span>
         <button class="trash" style="min-width:40px" onclick="delAsTag('${path}',${i})">✕</button></div>`;}).join('')}</div>
       <div class="addtag"><input type="text" id="${id}" placeholder="新しいタグ" onkeydown="if(event.key==='Enter'){event.preventDefault();addAsTag('${path}')}"><button onclick="addAsTag('${path}')">追加</button></div>`; };
-  $('app').innerHTML=`
-    <h2>ニックネーム</h2><div class="card"><input type="text" value="${esc(a.nickname)}" placeholder="例：自分" oninput="setAsNick(this.value)">
-      <div class="sm muted" style="margin-top:6px">新規ラウンド時の「自分」の初期名です（ラウンドごとにラウンド設定で変更できます）。</div></div>
-    <h2>ティーの残り距離（初期値）</h2><div class="card">${teeRow(3)}${teeRow(4)}${teeRow(5)}
-      <div class="sm muted" style="margin-top:2px">新規ラウンドのパー別ヤードの初期値です。</div></div>
-    <h2>単位</h2><div class="card">${unitRow('ショット','toGreen',['y','m'])}${unitRow('アプローチ','approach',['y','m','歩'])}${unitRow('パット','putt',['歩','y','m'])}</div>
-    <h2>番手（☰でドラッグ並べ替え・飛距離）</h2><div class="card grid2" id="clubsort">${a.clubs.map(clubRow).join('')}
+  const secNick=`<div class="card"><input type="text" value="${esc(a.nickname)}" placeholder="例：自分" oninput="setAsNick(this.value)">
+      <div class="sm muted" style="margin-top:6px">新規ラウンド時の「自分」の初期名です（ラウンドごとにラウンド設定で変更できます）。</div></div>`;
+  const secTee=`<div class="card">${teeRow(3)}${teeRow(4)}${teeRow(5)}
+      <div class="sm muted" style="margin-top:2px">新規ラウンドのパー別ヤードの初期値です。</div></div>`;
+  const secUnit=`<div class="card">${unitRow('ショット','toGreen',['y','m'])}${unitRow('アプローチ','approach',['y','m','歩'])}${unitRow('パット','putt',['歩','y','m'])}</div>`;
+  const secClub=`<div class="card grid2" id="clubsort">${a.clubs.map(clubRow).join('')}
       <button class="ghostbtn" onclick="addAsClub()">＋ 番手を追加</button>
-      <div class="sm muted">飛距離は、ショットでクラブを選んだときの残りヤードの初期値になります。</div></div>
-    <h2>タグ（並べ替え・追加・削除）</h2><div class="card" style="padding-top:2px"><div class="sm muted" style="margin:4px 0 2px">状況・狙いは打つ前のタグ。打った後の気づきは各ショットの「キーポイント（文章）」へ。<b>＋付き・太字＝自分で追加したタグ</b>。</div>${TG.map(tagSection).join('')}</div>
-    <h2>設定のバックアップ／復元（ニックネーム・ティー・単位・番手・タグ）</h2><div class="card">
+      <div class="sm muted">飛距離は、ショットでクラブを選んだときの残りヤードの初期値になります。</div></div>`;
+  const secTag=`<div class="card" style="padding-top:2px"><div class="sm muted" style="margin:4px 0 2px">状況・狙いは打つ前のタグ。打った後の気づきは各ショットの「キーポイント（文章）」へ。<b>＋付き・太字＝自分で追加したタグ</b>。</div>${TG.map(tagSection).join('')}</div>`;
+  const secSetBak=`<div class="card">
       <div style="display:flex; gap:8px; flex-wrap:wrap">
         <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="exportSettings()">📋 書き出す（ファイル＋コピー）</button>
         <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="importSettings()">📥 読み込む（復元）</button></div>
       <textarea id="setio" placeholder="ここに書き出したJSONが入ります／復元するJSONを貼り付け" style="margin-top:8px; min-height:90px; font-family:monospace; font-size:12px" autocomplete="off" spellcheck="false"></textarea>
-      <div class="sm muted" style="margin-top:6px">設定（ニックネーム・ティー距離・単位・番手・タグ）だけをファイルで保存/復元します。<b>タグ・番手は不足分を追記（非破壊）</b>、その他は読み込んだ値に更新。取り込み後は「保存」を押してください。<br>※更新時は設定を自動でバックアップし、万一初期化されても起動時に自動復元します。機種変更・全消去に備え、時々このファイル書き出しも。</div></div>
-    <h2>コースマスター</h2><div class="card">
+      <div class="sm muted" style="margin-top:6px">設定（ニックネーム・ティー距離・単位・番手・タグ）だけをファイルで保存/復元します。<b>タグ・番手は不足分を追記（非破壊）</b>、その他は読み込んだ値に更新。取り込み後は「保存」を押してください。<br>※更新時は設定を自動でバックアップし、万一初期化されても起動時に自動復元します。機種変更・全消去に備え、時々このファイル書き出しも。</div></div>`;
+  const secCourse=`<div class="card">
       <div class="sm muted" style="margin-bottom:8px">9hごとに Par・距離を保存し、ラウンド設定で選んで流し込めます（27h/36hは1施設に9hを複数束ねる）。ラウンドを開始/保存すると自動で保存されます。</div>
-      <button class="ghostbtn" onclick="goCourses()">コースマスターを編集（${DB.courses().length}施設）</button></div>
-    <h2>デフォルト記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${a.logLevel===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>
-    <h2>バックアップ・復元</h2><div class="card grid2">
+      <button class="ghostbtn" onclick="goCourses()">コースマスターを編集（${DB.courses().length}施設）</button></div>`;
+  const secLog=`<div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${a.logLevel===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>`;
+  const secBackup=`<div class="card grid2">
       <button class="ghostbtn" onclick="exportData()">📥 バックアップ書き出し（JSON・復元可）</button>
       <button class="ghostbtn" onclick="restoreBackup('copy')">📤 復元：別名で追加（推奨・非破壊）</button>
       <button class="ghostbtn" onclick="restoreBackup('overwrite')">📤 復元：上書き（同IDを置換）</button>
       <button class="ghostbtn" onclick="exportCSV()">📄 スコアをCSVで書き出し（表計算用・復元不可）</button>
-      <div class="sm muted">JSONは完全な復元用、CSVは閲覧用（復元不可）。機種変更・万一の備えに、こまめに書き出しを。</div></div>
-    <h2>Gemini（AI連携）</h2><div class="card">
+      <div class="sm muted">JSONは完全な復元用、CSVは閲覧用（復元不可）。機種変更・万一の備えに、こまめに書き出しを。</div></div>`;
+  const secGemini=`<div class="card">
       <div class="taglab" style="margin:0 0 4px">APIキー（この端末のみ保存・バックアップに含めません）</div>
       <input type="text" value="${esc(getKey())}" placeholder="Google AI Studio で取得したキーを貼り付け" oninput="setKey(this.value)" autocomplete="off" autocapitalize="off" spellcheck="false">
       <div style="display:flex; gap:8px; margin-top:8px"><button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:10px 16px" onclick="testKey()">接続テスト</button></div>
-      <div class="sm muted" style="margin-top:8px; line-height:1.5">・AI診断・音声文字起こしに使用（オンライン時のみ）。<br>・<b>このアプリ専用のキー</b>を取得推奨（漏れても失効しやすく巻き添え防止）。<br>・GCPで「API制限：Generative Language のみ」＋「HTTPリファラ制限（${location.hostname||'公開ドメイン'}）」＋低クォータを推奨。<br>・モデルは自動選択（最新優先）。</div></div>
-    <h2>バージョン情報</h2><div class="card">
+      <div class="sm muted" style="margin-top:8px; line-height:1.5">・AI診断・音声文字起こしに使用（オンライン時のみ）。<br>・<b>このアプリ専用のキー</b>を取得推奨（漏れても失効しやすく巻き添え防止）。<br>・GCPで「API制限：Generative Language のみ」＋「HTTPリファラ制限（${location.hostname||'公開ドメイン'}）」＋低クォータを推奨。<br>・モデルは自動選択（最新優先）。</div></div>`;
+  const secVer=`<div class="card">
       <div style="font-weight:800; font-size:17px">100yd Sync v${APP_VERSION}</div>
       <div class="sm muted" style="margin-top:2px">ビルド日：${APP_BUILD}</div>
       <div class="sm muted" style="margin-top:8px">この番号が変わっていれば、更新が反映されています。更新は「新しいバージョンがあります」→「更新する」で適用されます。</div></div>`;
+  $('app').innerHTML=
+    '<div class="sm muted" style="margin:0 2px 8px">各項目の見出しをタップで開閉できます（状態は端末に保存）。</div>'
+    +asSec('nick','ニックネーム',secNick)
+    +asSec('tee','ティーの残り距離（初期値）',secTee)
+    +asSec('unit','単位',secUnit)
+    +asSec('club','番手（☰でドラッグ並べ替え・飛距離）',secClub)
+    +asSec('tag','タグ（並べ替え・追加・削除）',secTag)
+    +asSec('setbak','設定のバックアップ／復元',secSetBak)
+    +asSec('course','コースマスター',secCourse)
+    +asSec('loglv','デフォルト記録レベル',secLog)
+    +asSec('backup','バックアップ・復元',secBackup)
+    +asSec('gemini','Gemini（AI連携）',secGemini)
+    +asSec('ver','バージョン情報',secVer);
   $('topsub').textContent='アプリ設定';
   $('topbtns').innerHTML=`<button class="iconbtn" onclick="goHome()">キャンセル</button> <button class="iconbtn primary" onclick="saveAppSettings()">保存</button>`;
   setupSortables();
 }
 
 /* ============ コースマスター 編集画面 ============ */
-let coursesEdit=null;
+let coursesEdit=null, cmSel=null;
 function mkNine(){ const st=DB.settings(); return { id:cmUid('n-'), name:'', pars:Array(9).fill(4), yards:Array(9).fill(st.teeDefault[4]||350) }; }
 function backFromCourses(){ S.view=S.returnView||'appset'; S.returnView=null; render(); }
-function cmCancel(){ coursesEdit=null; backFromCourses(); }
+function cmCancel(){ coursesEdit=null; cmSel=null; backFromCourses(); }
 function cmSave(){ const clean=(coursesEdit||[]).map(c=>({ id:c.id||cmUid('c-'), name:(c.name||'').trim(),
     nines:(c.nines||[]).map(n=>({ id:n.id||cmUid('n-'), name:(n.name||'').trim(), pars:n.pars.slice(0,9), yards:n.yards.slice(0,9) })) }))
     .filter(c=>c.name || c.nines.length);
-  DB.saveCourses(clean); coursesEdit=null; backFromCourses(); }
-function cmAddFac(){ coursesEdit.push({ id:cmUid('c-'), name:'', nines:[mkNine()] }); render(); }
-function cmDelFac(ci){ if(!confirm('この施設マスターを削除します。過去のラウンド記録には影響しません。よろしいですか？'))return; coursesEdit.splice(ci,1); render(); }
+  DB.saveCourses(clean); coursesEdit=null; cmSel=null; backFromCourses(); }
+function cmOpenFac(ci){ cmSel=ci; S.view='courseEdit'; render(); }
+function cmBackList(){ cmSel=null; S.view='courses'; render(); }
+function cmAddFac(){ coursesEdit.push({ id:cmUid('c-'), name:'', nines:[mkNine()] }); cmSel=coursesEdit.length-1; S.view='courseEdit'; render(); }
+function cmDelFac(ci){ if(!confirm('この施設マスターを削除します。過去のラウンド記録には影響しません。よろしいですか？'))return; coursesEdit.splice(ci,1);
+  if(S.view==='courseEdit'){ cmSel=null; S.view='courses'; } else if(cmSel!=null&&ci<cmSel){ cmSel--; } render(); }
 function cmSetFacName(ci,v){ coursesEdit[ci].name=v; }
 function cmAddNine(ci){ coursesEdit[ci].nines.push(mkNine()); render(); }
 function cmDelNine(ci,ni){ if(!confirm('この9hを削除します。よろしいですか？'))return; coursesEdit[ci].nines.splice(ni,1); render(); }
 function cmSetNineName(ci,ni,v){ coursesEdit[ci].nines[ni].name=v; }
 function cmSetPar(ci,ni,i,p){ const st=DB.settings(), n=coursesEdit[ci].nines[ni]; n.pars[i]=p; n.yards[i]=st.teeDefault[p]||n.yards[i]; render(); }
 function cmSetYard(ci,ni,i,v){ coursesEdit[ci].nines[ni].yards[i]=+v; }
+/* 施設一覧（タップで施設編集へ） */
 function renderCourses(){ const list=coursesEdit||[];
-  const nineBlock=(ci,ni)=>{ const n=list[ci].nines[ni];
+  const facRow=(ci)=>{ const c=list[ci]; const nn=c.nines.length; const parTot=c.nines.reduce((a,n)=>a+n.pars.reduce((x,y)=>x+y,0),0);
+    const sub=nn?('9h×'+nn+'（'+(nn*9)+'h・計par'+parTot+'）'):'9hなし';
+    return `<div class="card" style="margin-top:8px"><div class="frow" style="margin:0; align-items:center; gap:8px">
+      <div style="flex:1; cursor:pointer" onclick="cmOpenFac(${ci})"><div style="font-weight:800">${esc(c.name||'（施設名未設定）')}</div><div class="sm muted">${sub}</div></div>
+      <button class="ghostbtn" style="flex:0 0 auto; width:auto; padding:8px 12px" onclick="cmOpenFac(${ci})">編集 ›</button>
+      <button class="trash" style="min-width:40px" onclick="cmDelFac(${ci})">✕</button></div></div>`; };
+  $('app').innerHTML=`
+    <div class="card" style="border-color:var(--accent); background:rgba(79,140,255,.06)"><div class="sm">施設（コース）ごとに 9h を束ねて保存します（<b>18h=2・27h=3・36h=4</b>）。施設をタップすると 9h の編集に入ります。<b>過去のラウンド記録には影響しません</b>。</div></div>
+    <div class="frow" style="gap:8px; margin:0 0 4px"><button class="ghostbtn" style="flex:1" onclick="cmImportFile()">📥 JSONから取り込み</button><button class="ghostbtn" style="flex:1" onclick="cmExportFile()">📤 JSONで書き出し</button></div>
+    <div class="sm muted" style="margin:0 2px 8px">取り込みは<b>非破壊</b>（同名の施設・9hは追加せず既存を維持）。確認後「保存」で確定。</div>
+    ${list.length?list.map((_,ci)=>facRow(ci)).join(''):'<div class="card"><div class="sm muted">まだコースマスターがありません。ラウンドを開始/保存すると自動保存されます。手動追加は下のボタンから。</div></div>'}
+    <div style="margin-top:14px"><button class="ghostbtn" onclick="cmAddFac()">＋ 施設を追加</button></div>
+    <div style="height:24px"></div>`;
+  $('topsub').textContent='コースマスター';
+  $('topbtns').innerHTML=`<button class="iconbtn" onclick="cmCancel()">キャンセル</button> <button class="iconbtn primary" onclick="cmSave()">保存</button>`;
+}
+/* 施設編集（その施設の 9h×複数） */
+function renderCourseEdit(){ const list=coursesEdit||[], ci=cmSel;
+  if(ci==null||!list[ci]){ cmBackList(); return; }
+  const c=list[ci];
+  const nineBlock=(ni)=>{ const n=c.nines[ni];
     const rows=[...Array(9)].map((_,i)=>{ const pick=p=>`<td class="parpick ${n.pars[i]===p?'on':''}" onclick="cmSetPar(${ci},${ni},${i},${p})">${p}</td>`;
       return `<tr><td class="hno">${i+1}</td>${pick(3)}${pick(4)}${pick(5)}<td><select onchange="cmSetYard(${ci},${ni},${i},this.value)">${yardOpts(n.yards[i])}</select></td></tr>`; }).join('');
     return `<div class="card" style="margin-top:8px">
       <div class="setline"><span class="slab">9h名</span><input type="text" value="${esc(n.name)}" placeholder="例：梅／OUT" oninput="cmSetNineName(${ci},${ni},this.value)"><button class="trash" style="min-width:40px" onclick="cmDelNine(${ci},${ni})">✕</button></div>
       <div class="cardwrap"><table class="holetbl"><tr><th>ホール</th><th>3</th><th>4</th><th>5</th><th>距離(y)</th></tr>${rows}</table></div>
       <div class="sm muted center" style="margin-top:6px">パー計 ${n.pars.reduce((a,b)=>a+b,0)}</div></div>`; };
-  const facBlock=(ci)=>{ const c=list[ci];
-    return `<h2>${esc(c.name||'（施設名未設定）')}</h2>
-      <div class="card"><div class="setline"><span class="slab">施設名</span><input type="text" value="${esc(c.name)}" placeholder="例：○○カントリークラブ" oninput="cmSetFacName(${ci},this.value)"><button class="trash" style="min-width:40px" onclick="cmDelFac(${ci})">✕</button></div></div>
-      ${c.nines.map((_,ni)=>nineBlock(ci,ni)).join('')}
-      <button class="ghostbtn" style="margin-top:8px" onclick="cmAddNine(${ci})">＋ 9h（nine）を追加</button>`; };
   $('app').innerHTML=`
-    <div class="card" style="border-color:var(--accent); background:rgba(79,140,255,.06)"><div class="sm">9hごとに Par・距離を保存します。1施設に9hを複数束ねると <b>18h=2つ・27h=3つ・36h=4つ</b> に対応します。<br>ここでの編集は<b>今後のラウンド設定の流し込み用</b>です。<b>過去のラウンド記録には影響しません</b>（各ラウンドは開始時の値を保持）。</div></div>
-    <div class="frow" style="gap:8px; margin:0 0 4px"><button class="ghostbtn" style="flex:1" onclick="cmImportFile()">📥 JSONから取り込み</button><button class="ghostbtn" style="flex:1" onclick="cmExportFile()">📤 JSONで書き出し</button></div>
-    <div class="sm muted" style="margin:0 2px 8px">取り込みは<b>非破壊</b>（同名の施設・9hは追加せず既存を維持）。内容を確認してから「保存」で確定します。形式：<code>{"courses":[{"name":"○○CC","nines":[{"name":"OUT","pars":[4,4,3,5,4,4,3,5,4],"yards":[350,…9個…]}]}]}</code>（配列のみ・バックアップJSONも可）。</div>
-    ${list.length?list.map((_,ci)=>facBlock(ci)).join(''):'<div class="card"><div class="sm muted">まだコースマスターがありません。ラウンドを開始/保存すると自動で保存されます。手動で作るには下のボタンから。</div></div>'}
-    <div style="margin-top:14px"><button class="ghostbtn" onclick="cmAddFac()">＋ 施設を追加</button></div>`;
-  $('topsub').textContent='コースマスター';
+    <div class="backbar"><button class="backbtn" onclick="cmBackList()">‹ 施設一覧</button><div class="sp"></div><div class="sm muted">コース編集</div></div>
+    <div class="card"><div class="setline"><span class="slab">施設名</span><input type="text" value="${esc(c.name)}" placeholder="例：○○カントリークラブ" oninput="cmSetFacName(${ci},this.value)"><button class="trash" style="min-width:40px" onclick="cmDelFac(${ci})">✕</button></div></div>
+    ${c.nines.length?c.nines.map((_,ni)=>nineBlock(ni)).join(''):'<div class="card"><div class="sm muted">この施設には 9h がありません。下の「＋ 9h を追加」から作ってください。</div></div>'}
+    <button class="ghostbtn" style="margin-top:8px" onclick="cmAddNine(${ci})">＋ 9h（nine）を追加</button>
+    <div style="height:24px"></div>`;
+  $('topsub').textContent='コース編集';
   $('topbtns').innerHTML=`<button class="iconbtn" onclick="cmCancel()">キャンセル</button> <button class="iconbtn primary" onclick="cmSave()">保存</button>`;
 }
 
@@ -1650,6 +1686,7 @@ function render(){
   else if(S.view==='setup') renderSetup();
   else if(S.view==='appset') renderAppSettings();
   else if(S.view==='courses') renderCourses();
+  else if(S.view==='courseEdit') renderCourseEdit();
   else if(S.view==='auditlist') renderAuditList();
   else if(S.view==='audit') renderAudit();
   else if(S.view==='exportsel') renderExportSel();
