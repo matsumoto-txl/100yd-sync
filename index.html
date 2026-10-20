@@ -121,6 +121,7 @@
   .sfrom{ font-size:12px; color:var(--muted); margin-bottom:6px; }
   .sfrom b{ color:var(--text); font-weight:800; }
   .sfrom.warn{ color:var(--bad); }
+  .cmwarn{ color:var(--bad); }
   .sfrom.warn select{ margin-left:6px; width:auto; padding:6px 24px 6px 10px; }
   .lielab{ font-size:11px; color:var(--muted); margin:6px 0 2px; }
   .liestrip{ display:flex; flex-wrap:wrap; gap:4px; padding:0 0 2px; }
@@ -229,8 +230,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.31.0';
-const APP_BUILD='2026-10-20';/*v2.31.0 スタッツ：距離帯別パーオン率→距離帯別グリーンオン率（ショット単位・≤50y／30y刻み／200y超）に置き換え*/
+const APP_VERSION='2.32.0';
+const APP_BUILD='2026-10-20';/*v2.32.0 コースマスター：📷 写真から取り込み（Gemini でスコアカードを読み取り・ティーは毎回選択／使った名前を候補化・印刷小計と照合して！・確認後に非破壊追加）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -1354,11 +1355,11 @@ function renderAppSettings(){
 let coursesEdit=null, cmSel=null;
 function mkNine(){ const st=DB.settings(); return { id:cmUid('n-'), name:'', pars:Array(9).fill(4), yards:Array(9).fill(st.teeDefault[4]||350) }; }
 function backFromCourses(){ S.view=S.returnView||'appset'; S.returnView=null; render(); }
-function cmCancel(){ coursesEdit=null; cmSel=null; backFromCourses(); }
+function cmCancel(){ coursesEdit=null; cmSel=null; cmWarn={}; backFromCourses(); }
 function cmSave(){ const clean=(coursesEdit||[]).map(c=>({ id:c.id||cmUid('c-'), name:(c.name||'').trim(),
     nines:(c.nines||[]).map(n=>({ id:n.id||cmUid('n-'), name:(n.name||'').trim(), pars:n.pars.slice(0,9), yards:n.yards.slice(0,9) })) }))
     .filter(c=>c.name || c.nines.length);
-  DB.saveCourses(clean); coursesEdit=null; cmSel=null; backFromCourses(); }
+  DB.saveCourses(clean); coursesEdit=null; cmSel=null; cmWarn={}; backFromCourses(); }
 function cmOpenFac(ci){ cmSel=ci; S.view='courseEdit'; render(); }
 function cmBackList(){ cmSel=null; S.view='courses'; render(); }
 function cmAddFac(){ coursesEdit.push({ id:cmUid('c-'), name:'', nines:[mkNine()] }); cmSel=coursesEdit.length-1; S.view='courseEdit'; render(); }
@@ -1368,6 +1369,132 @@ function cmSetFacName(ci,v){ coursesEdit[ci].name=v; }
 function cmAddNine(ci){ coursesEdit[ci].nines.push(mkNine()); render(); }
 function cmDelNine(ci,ni){ if(!confirm('この9hを削除します。よろしいですか？'))return; coursesEdit[ci].nines.splice(ni,1); render(); }
 function cmSetNineName(ci,ni,v){ coursesEdit[ci].nines[ni].name=v; }
+
+/* ============ コースマスター：📷 写真から取り込み（Gemini・確認後に非破壊追加／DESIGN_course_master「写真から取り込み」） ============
+   ・ティーは取り込むたびに選ぶ。使ったティー名は golf.v2.teeNames（新規キー・追加のみ）に貯めて次回の選択肢にする。
+   ・写真は端末に保存しない（メモリ上のみ）。結果は cmMergeInto（非破壊・追加のみ）→ 施設編集で確認 →「保存」で確定。 */
+let cmPhoto=null, cmPhotoBusy=false, cmWarn={};
+function teeNames(){ try{ const a=JSON.parse(localStorage.getItem('golf.v2.teeNames')||'[]'); return Array.isArray(a)?a.filter(x=>typeof x==='string'&&x.trim()):[]; }catch(e){ return []; } }
+function addTeeName(t){ t=(t||'').trim(); if(!t)return; try{ const a=teeNames().filter(x=>x!==t); a.unshift(t); localStorage.setItem('golf.v2.teeNames', JSON.stringify(a)); }catch(e){} }
+function cmPhotoStart(){ if(!getKey()){ if(confirm('Gemini APIキーが未設定です。アプリ設定で設定しますか？\n（コースマスターの未保存の変更は破棄されます）')){ coursesEdit=null; cmSel=null; cmWarn={}; S.returnView=null; openAppSettings(); } return; }
+  cmPhoto={tee:teeNames()[0]||'', imgs:[], res:null, error:null, raw:null}; S.view='cmphoto'; render(); }
+function cmPhotoBack(){ cmPhoto=null; cmPhotoBusy=false; cmBackList(); }
+function cmPhotoSetTee(v){ cmPhoto.tee=v; }
+function cmPhotoPickTee(i){ const t=teeNames()[i]; if(t!=null){ cmPhoto.tee=t; render(); } }
+/* 送る前に縮小（長辺 maxSide px・JPEG）。白背景で塗ってから描く（透過PNG対策） */
+function shrinkImage(file,maxSide,q){ return new Promise((ok,ng)=>{ const url=URL.createObjectURL(file), im=new Image();
+  im.onload=()=>{ try{ const W=im.naturalWidth, Hh=im.naturalHeight, s=Math.min(1, maxSide/Math.max(W,Hh)); const w=Math.max(1,Math.round(W*s)), h=Math.max(1,Math.round(Hh*s));
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,w,h); cx.drawImage(im,0,0,w,h);
+      const d=cv.toDataURL('image/jpeg',q); URL.revokeObjectURL(url); ok({url:d, b64:d.split(',')[1], w:w, h:h}); }catch(e){ URL.revokeObjectURL(url); ng(e); } };
+  im.onerror=()=>{ URL.revokeObjectURL(url); ng(new Error('画像を読み込めません')); }; im.src=url; }); }
+function cmPhotoPick(cam){ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; if(cam)inp.setAttribute('capture','environment'); else inp.multiple=true;
+  inp.onchange=async function(){ const fs=[].slice.call(inp.files||[]); let ng=0;
+    for(const f of fs){ try{ const im=await shrinkImage(f,1600,0.85); if(cmPhoto)cmPhoto.imgs.push(im); }catch(e){ ng++; } }
+    if(ng)alert(ng+'枚の写真を読み込めませんでした（形式をご確認ください）'); render(); };
+  inp.click(); }
+function cmPhotoDel(i){ cmPhoto.imgs.splice(i,1); render(); }
+function coursePhotoPrompt(tee){ return 'あなたはゴルフ場のスコアカードを読み取る担当です。添付の写真（複数枚の場合は、同じゴルフ場のカードの表と裏など）からコース情報を読み取ってください。\n'
+  +'- 距離は「'+tee+'」ティーの列（または行）の値だけを使う。大文字小文字・日本語表記（例：ホワイト）・色名の違いは同じティーとみなしてよい。該当するティーが見当たらない場合は yards をすべて null にし、note にその旨とカードにあるティー名を書く。\n'
+  +'- ゴルフ場名を name に入れる。9ホールごと（OUT／IN、または 松・竹・梅 などのコース名）に nines を分ける。nine の name はカードの表記どおり（無ければ OUT／IN）。\n'
+  +'- pars と yards はそれぞれ9個・ホール順。読めないホールは null にする（推測で埋めない）。HDCP（ハンディキャップ）の行を Par や距離と取り違えない。\n'
+  +'- カードに印刷されている9ホールの小計（Par の合計・距離の合計）を、自分で計算せず印刷どおり parTotal / yardTotal に入れる。印刷が無い・読めない場合は null。\n'
+  +'- 距離の単位がメートルなら unit を "m"、ヤードなら "y"。\n'
+  +'- 出力は次の形の JSON だけ（説明文は不要）：\n'
+  +'{"courses":[{"name":"○○カントリークラブ","nines":[{"name":"OUT","pars":[4,4,3,5,4,4,3,5,4],"yards":[380,360,160,510,400,370,170,520,390],"parTotal":36,"yardTotal":3260}]}],"unit":"y","tee":"読んだ列の見出し","note":"読めなかった点など"}'; }
+function cmPhotoNum(v){ return (v==null||v===''||isNaN(+v))?null:+v; }
+/* Gemini 応答 → 確認用データ（純関数）。m表記は y へ換算（小計の突合せは元の単位で行う） */
+function cmPhotoBuild(j){ const unit=(j&&String(j.unit||'').trim().toLowerCase()==='m')?'m':'y';
+  const toY=v=>v==null?null:(unit==='m'?Math.round(v*1.0936):Math.round(v));
+  const courses=extractCourses(j).map(c=>({ name:((c&&c.name)||'').trim(), nines:((c&&c.nines)||[]).map((n,k)=>{
+      const pars=[...Array(9)].map((_,i)=>cmPhotoNum(n&&n.pars?n.pars[i]:null));
+      const yRaw=[...Array(9)].map((_,i)=>cmPhotoNum(n&&n.yards?n.yards[i]:null));
+      return { id:cmUid('n-'), name:((n&&n.name)||'').trim()||(k===0?'OUT':(k===1?'IN':'')), pars:pars, yRaw:yRaw, yards:yRaw.map(toY),
+        parTotal:cmPhotoNum(n&&n.parTotal), yTotRaw:cmPhotoNum(n&&n.yardTotal), use:true }; }) })).filter(c=>c.nines.length);
+  courses.forEach(c=>c.nines.forEach(n=>{ if(!cmNineCheck(n).parsOk)n.use=false; }));
+  return { courses:courses, unit:unit, tee:String((j&&j.tee)||'').trim(), note:String((j&&j.note)||'').trim() }; }
+/* 9hごとの点検：各ホールの合計 と カード印刷の小計 の突合せ（warn=「！」） */
+function cmNineCheck(n){ const sum=a=>a.every(v=>v!=null)?a.reduce((x,y)=>x+y,0):null;
+  const parsOk=n.pars.length===9&&n.pars.every(p=>p!=null&&p>=3&&p<=6);
+  const sp=sum(n.pars), sy=sum(n.yRaw), msgs=[]; let warn=false;
+  const missY=n.yRaw.filter(v=>v==null).length;
+  if(!parsOk) msgs.push('Parが9個そろっていない（3〜6以外を含む）ため取り込めません');
+  if(missY){ warn=true; msgs.push('距離が読めないホール'+missY+'個（取り込むと既定値で仮入力）'); }
+  if(n.parTotal==null) msgs.push('Par小計：読めず');
+  else if(sp!==n.parTotal){ warn=true; msgs.push('Par：合計'+(sp==null?'?':sp)+' ≠ 小計'+n.parTotal); }
+  if(n.yTotRaw==null) msgs.push('距離小計：読めず');
+  else if(sy!==n.yTotRaw){ warn=true; msgs.push('距離：合計'+(sy==null?'?':sy)+' ≠ 小計'+n.yTotRaw); }
+  return {parsOk:parsOk, warn:warn, ok:parsOk&&!warn&&n.parTotal!=null&&n.yTotRaw!=null, sp:sp, sy:sy, msgs:msgs}; }
+/* 同じ施設に同名の9hがあると cmMergeInto は追加しない → 確認画面で知らせる */
+function cmNineDup(c,n){ const fn=(c.name||'').trim(), nn=(n.name||'').trim(); if(!fn||!nn)return false;
+  const fac=(coursesEdit||[]).find(x=>(x.name||'').trim()===fn); if(fac&&fac.nines.some(x=>(x.name||'').trim()===nn))return true;
+  return c.nines.filter(x=>x.use&&(x.name||'').trim()===nn).length>1 && c.nines.filter(x=>x.use).find(x=>(x.name||'').trim()===nn)!==n; }
+function cmPhotoRun(){ const P=cmPhoto, t=(P.tee||'').trim();
+  if(!t){ alert('ティーを選ぶか入力してください（例：White）'); return; }
+  if(!P.imgs.length){ alert('写真を追加してください（表と裏など複数枚可）'); return; }
+  addTeeName(t); cmPhotoBusy=true; P.error=null; P.raw=null; P.res=null; render();
+  const parts=[{text:coursePhotoPrompt(t)}].concat(P.imgs.map(im=>({inlineData:{mimeType:'image/jpeg',data:im.b64}})));
+  geminiCall(parts).then(txt=>{ if(cmPhoto!==P)return; let j;
+      try{ j=parseAiJson(txt); }catch(e){ P.error='読み取り結果（JSON）を解釈できませんでした。もう一度お試しください。'; P.raw=txt; cmPhotoBusy=false; render(); return; }
+      P.res=cmPhotoBuild(j); if(!P.res.courses.length){ P.error='コース情報が見つかりませんでした。写真やティー名をご確認ください。'; P.raw=txt; P.res=null; }
+      cmPhotoBusy=false; render(); })
+    .catch(e=>{ if(cmPhoto!==P)return; P.error='⚠ '+e.message; cmPhotoBusy=false; render(); }); }
+function cmPhotoRetry(){ cmPhoto.res=null; cmPhoto.error=null; cmPhoto.raw=null; render(); }
+function cmPhotoSetFac(ci,v){ cmPhoto.res.courses[ci].name=v; }
+function cmPhotoSetNine(ci,ni,v){ cmPhoto.res.courses[ci].nines[ni].name=v; }
+function cmPhotoToggle(ci,ni){ const n=cmPhoto.res.courses[ci].nines[ni]; if(!cmNineCheck(n).parsOk)return; n.use=!n.use; render(); }
+function cmPhotoApply(){ const r=cmPhoto&&cmPhoto.res; if(!r)return;
+  if(r.courses.some(c=>!c.name.trim()&&c.nines.some(n=>n.use))){ alert('施設名が空の行があります。施設名を入力してください。'); return; }
+  const inc=r.courses.map(c=>({ name:c.name.trim(), nines:c.nines.filter(n=>n.use&&cmNineCheck(n).parsOk&&(n.name||'').trim()&&!cmNineDup(c,n)).map(n=>({id:n.id, name:n.name.trim(), pars:n.pars.slice(), yards:n.yards.slice()})) })).filter(c=>c.nines.length);
+  if(!inc.length){ alert('追加できる9hがありません（取り込み対象・9h名・同名の有無をご確認ください）。'); return; }
+  r.courses.forEach(c=>c.nines.forEach(n=>{ const ck=cmNineCheck(n); if(ck.warn)cmWarn[n.id]=ck.msgs.filter(m=>!/読めず/.test(m)).join('／'); }));
+  const res=cmMergeInto(inc), fn=inc[0].name; cmPhoto=null; cmPhotoBusy=false;
+  const fi=coursesEdit.findIndex(c=>(c.name||'').trim()===fn);
+  alert('コースマスター（編集中）に追加しました（施設'+res.addF+'件・9h'+res.addN+'個／既存は不変）。\n数値を確認し、右上の「保存」で確定してください。');
+  if(fi>=0)cmOpenFac(fi); else cmBackList(); }
+function renderCmPhoto(){ $('topsub').textContent='写真から取り込み'; $('topbtns').innerHTML='';
+  const P=cmPhoto; if(!P){ cmBackList(); return; }
+  const back='<div class="backbar"><button class="backbtn" onclick="cmPhotoBack()">‹ 施設一覧</button><div class="sp"></div><div class="sm muted">📷 写真から取り込み</div></div>';
+  if(cmPhotoBusy){ $('app').innerHTML=back+'<div class="card">🤖 スコアカードを読み取っています…（'+P.imgs.length+'枚・ティー「'+esc(P.tee)+'」・オンライン時のみ）</div>'; return; }
+  if(P.res){ $('app').innerHTML=back+renderCmPhotoResult(); return; }
+  const tn=teeNames();
+  const chips=tn.length?'<div class="tags" style="margin-bottom:8px">'+tn.map((t,i)=>'<button class="tag post '+(t===P.tee?'on':'')+'" onclick="cmPhotoPickTee('+i+')">'+esc(t)+'</button>').join('')+'</div>':'';
+  const thumbs=P.imgs.length?'<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px">'+P.imgs.map((im,i)=>'<div style="position:relative"><img src="'+im.url+'" alt="写真'+(i+1)+'" style="width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid var(--border)"><button aria-label="この写真を外す" style="position:absolute; top:4px; right:4px; width:26px; height:26px; padding:0; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:14px; line-height:26px; cursor:pointer" onclick="cmPhotoDel('+i+')">✕</button></div>').join('')+'</div>':'<div class="sm muted" style="margin-top:8px">まだ写真がありません。</div>';
+  $('app').innerHTML=back+`
+    ${P.error?'<div class="card" style="border-color:var(--bad)"><div style="font-weight:700">'+esc(P.error)+'</div>'+(P.raw?'<pre class="sm" style="white-space:pre-wrap; word-break:break-all; margin-top:8px">'+esc(P.raw.slice(0,500))+'</pre>':'')+'</div>':''}
+    <div class="card"><div style="font-weight:800; margin-bottom:6px">① ティー（距離を読む列）</div>
+      ${chips}<input type="text" value="${esc(P.tee)}" placeholder="例：White／Regular" oninput="cmPhotoSetTee(this.value)" style="width:100%">
+      <div class="sm muted" style="margin-top:6px">${tn.length?'前に使ったティー名から選ぶか、入力してください。':'カードのティー名を入力してください。一度使った名前は次回から選べます。'}</div></div>
+    <div class="card"><div style="font-weight:800; margin-bottom:6px">② スコアカードの写真（表と裏など複数枚可）</div>
+      <div class="frow" style="gap:8px; margin:0"><button class="ghostbtn" style="flex:1" onclick="cmPhotoPick(true)">📷 カメラで撮る</button><button class="ghostbtn" style="flex:1" onclick="cmPhotoPick(false)">🖼 保存済みの写真</button></div>
+      ${thumbs}
+      <div class="sm muted" style="margin-top:6px">写真は縮小して Gemini に送ります。端末には保存しません。</div></div>
+    <button class="ghostbtn" style="margin-top:8px; border-color:var(--accent); color:var(--accent); font-weight:800" onclick="cmPhotoRun()">🤖 読み取る（確認画面へ）</button>
+    <div class="sm muted" style="margin:8px 2px">読み取り結果は確認画面で見てから追加します。自動では保存しません。</div>
+    <div style="height:24px"></div>`; }
+function renderCmPhotoResult(){ const r=cmPhoto.res;
+  const head='<div class="card" style="border-color:var(--accent); background:rgba(79,140,255,.06)"><div class="sm">ティー「<b>'+esc(cmPhoto.tee)+'</b>」で読み取りました'+(r.tee?'（カードの見出し：'+esc(r.tee)+'）':'')+'。'
+    +(r.unit==='m'?'<br><b>距離はメートル表記だったため、ヤードに換算しています（×1.0936）。</b>':'')
+    +'<br>「！」はカードに印刷された小計とホールの合計が合わない 9h です。追加後に施設編集で直せます。</div>'
+    +(r.note?'<div class="sm muted" style="margin-top:6px">AIのメモ：'+esc(r.note)+'</div>':'')+'</div>';
+  const facs=r.courses.map((c,ci)=>{ const nines=c.nines.map((n,ni)=>{ const ck=cmNineCheck(n), dup=n.use&&cmNineDup(c,n);
+      const rows=[...Array(9)].map((_,i)=>'<tr><td class="hno">'+(i+1)+'</td><td>'+(n.pars[i]==null?'<span class="cmwarn">?</span>':n.pars[i])+'</td><td>'+(n.yards[i]==null?'<span class="cmwarn">?</span>':n.yards[i])+(r.unit==='m'&&n.yRaw[i]!=null?' <span class="sm muted">('+n.yRaw[i]+'m)</span>':'')+'</td></tr>').join('');
+      const tot='<tr style="font-weight:800"><td>計</td><td>'+(ck.sp==null?'?':ck.sp)+'</td><td>'+(ck.sy==null?'?':(r.unit==='m'?ck.sy+'m':ck.sy))+'</td></tr>'
+        +'<tr class="sm muted"><td>小計(印刷)</td><td>'+(n.parTotal==null?'—':n.parTotal)+'</td><td>'+(n.yTotRaw==null?'—':n.yTotRaw+(r.unit==='m'?'m':''))+'</td></tr>';
+      const badge=!ck.parsOk?'<span class="cmwarn" style="font-weight:800">取り込み不可</span>':(ck.warn?'<span class="cmwarn" style="font-weight:800">！ 小計と不一致など</span>':(ck.ok?'<span style="color:var(--good); font-weight:800">✓ 小計と一致</span>':'<span class="muted">小計の照合なし</span>'));
+      return `<div class="card" style="margin-top:8px${ck.warn||!ck.parsOk?'; border-color:var(--bad)':''}">
+        <div class="setline"><label style="display:flex; align-items:center; gap:4px; flex:0 0 auto"><input type="checkbox" ${n.use?'checked':''} ${ck.parsOk?'':'disabled'} onchange="cmPhotoToggle(${ci},${ni})">追加</label><span class="slab">9h名</span><input type="text" value="${esc(n.name)}" oninput="cmPhotoSetNine(${ci},${ni},this.value)" onchange="render()"></div>
+        <div style="margin:4px 2px">${badge}</div>
+        ${ck.msgs.length?'<div class="sm" style="margin:2px 2px 6px">'+ck.msgs.map(m=>'・'+esc(m)).join('<br>')+'</div>':''}
+        ${dup?'<div class="sm cmwarn" style="margin:2px 2px 6px">同じ施設に同名の9h「'+esc(n.name)+'」が既にあるため、このままでは追加されません（9h名を変えると追加できます）。</div>':''}
+        <div class="cardwrap"><table class="holetbl"><tr><th>ホール</th><th>Par</th><th>距離(y)</th></tr>${rows}${tot}</table></div></div>`; }).join('');
+    const exists=(coursesEdit||[]).some(x=>(x.name||'').trim()===c.name.trim()&&c.name.trim());
+    return `<div class="card" style="margin-top:12px"><div class="setline"><span class="slab">施設名</span><input type="text" value="${esc(c.name)}" placeholder="例：○○カントリークラブ" oninput="cmPhotoSetFac(${ci},this.value)" onchange="render()"></div>
+      <div class="sm muted" style="margin-top:4px">${exists?'既存の施設に 9h を追加します（同名の 9h は追加しません）。':'新しい施設として追加します。'}</div></div>${nines}`; }).join('');
+  return head+facs+`
+    <div class="frow" style="gap:8px; margin-top:12px"><button class="ghostbtn" style="flex:1" onclick="cmPhotoRetry()">↺ 写真・ティーを変えて読み直す</button></div>
+    <button class="ghostbtn" style="margin-top:8px; border-color:var(--accent); color:var(--accent); font-weight:800" onclick="cmPhotoApply()">＋ コースマスターへ追加（施設編集で確認）</button>
+    <div class="sm muted" style="margin:8px 2px">追加は<b>非破壊</b>（既存の施設・9hは変えません）。追加後、施設編集で数値を確認し「保存」で確定します。</div>
+    <div style="height:24px"></div>`; }
 function cmSetPar(ci,ni,i,p){ const st=DB.settings(), n=coursesEdit[ci].nines[ni]; n.pars[i]=p; n.yards[i]=st.teeDefault[p]||n.yards[i]; render(); }
 function cmSetYard(ci,ni,i,v){ coursesEdit[ci].nines[ni].yards[i]=+v; }
 /* 施設一覧（タップで施設編集へ） */
@@ -1381,6 +1508,7 @@ function renderCourses(){ const list=coursesEdit||[];
   $('app').innerHTML=`
     <div class="card" style="border-color:var(--accent); background:rgba(79,140,255,.06)"><div class="sm">施設（コース）ごとに 9h を束ねて保存します（<b>18h=2・27h=3・36h=4</b>）。施設をタップすると 9h の編集に入ります。<b>過去のラウンド記録には影響しません</b>。</div></div>
     <div class="frow" style="gap:8px; margin:0 0 4px"><button class="ghostbtn" style="flex:1" onclick="cmImportFile()">📥 JSONから取り込み</button><button class="ghostbtn" style="flex:1" onclick="cmExportFile()">📤 JSONで書き出し</button></div>
+    <button class="ghostbtn" style="margin:0 0 4px; border-color:var(--accent); color:var(--accent); font-weight:800" onclick="cmPhotoStart()">📷 写真から取り込み（スコアカードをAIで読み取り）</button>
     <div class="sm muted" style="margin:0 2px 8px">取り込みは<b>非破壊</b>（同名の施設・9hは追加せず既存を維持）。確認後「保存」で確定。</div>
     ${list.length?list.map((_,ci)=>facRow(ci)).join(''):'<div class="card"><div class="sm muted">まだコースマスターがありません。ラウンドを開始/保存すると自動保存されます。手動追加は下のボタンから。</div></div>'}
     <div style="margin-top:14px"><button class="ghostbtn" onclick="cmAddFac()">＋ 施設を追加</button></div>
@@ -1397,6 +1525,7 @@ function renderCourseEdit(){ const list=coursesEdit||[], ci=cmSel;
       return `<tr><td class="hno">${i+1}</td>${pick(3)}${pick(4)}${pick(5)}<td><select onchange="cmSetYard(${ci},${ni},${i},this.value)">${yardOpts(n.yards[i])}</select></td></tr>`; }).join('');
     return `<div class="card" style="margin-top:8px">
       <div class="setline"><span class="slab">9h名</span><input type="text" value="${esc(n.name)}" placeholder="例：梅／OUT" oninput="cmSetNineName(${ci},${ni},this.value)"><button class="trash" style="min-width:40px" onclick="cmDelNine(${ci},${ni})">✕</button></div>
+      ${cmWarn[n.id]?'<div class="sm cmwarn" style="margin:4px 2px 6px; font-weight:700">！ 写真の読み取りで要確認：'+esc(cmWarn[n.id])+'</div>':''}
       <div class="cardwrap"><table class="holetbl"><tr><th>ホール</th><th>3</th><th>4</th><th>5</th><th>距離(y)</th></tr>${rows}</table></div>
       <div class="sm muted center" style="margin-top:6px">パー計 ${n.pars.reduce((a,b)=>a+b,0)}</div></div>`; };
   $('app').innerHTML=`
@@ -1734,6 +1863,7 @@ function render(){
   else if(S.view==='appset') renderAppSettings();
   else if(S.view==='courses') renderCourses();
   else if(S.view==='courseEdit') renderCourseEdit();
+  else if(S.view==='cmphoto') renderCmPhoto();
   else if(S.view==='auditlist') renderAuditList();
   else if(S.view==='audit') renderAudit();
   else if(S.view==='exportsel') renderExportSel();
