@@ -229,8 +229,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.30.0';
-const APP_BUILD='2026-10-20';/*v2.30.0 スタッツ：パッティング深掘りを拡張（旧形式パット詳細も集計・傾斜×結果・距離帯別の近接度とショート/オーバー・読みの過不足）*/
+const APP_VERSION='2.31.0';
+const APP_BUILD='2026-10-20';/*v2.31.0 スタッツ：距離帯別パーオン率→距離帯別グリーンオン率（ショット単位・≤50y／30y刻み／200y超）に置き換え*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -905,6 +905,9 @@ function puttMissDir(fp){ const z=fp.zone||''; let v='', s='';
   if(/奥/.test(z))v='over'; else if(/手前/.test(z))v='short'; else if(fp.r2!=null&&fp.r2!==0)v=(fp.r2>0?'over':'short');
   if(/^左/.test(z))s='L'; else if(/^右/.test(z))s='R';
   return {v,s}; }
+/* グリーンオン率の距離帯（≤50y・以降30y刻み（上端を含む）・200y超は一括） */
+function gonBand(y){ y=+y; if(y<=50)return{k:'g1',lab:'≤50y',ord:1}; if(y>200)return{k:'g7',lab:'200y超',ord:7};
+  const lo=[51,81,111,141,171], k=Math.max(0,Math.min(4,Math.ceil((y-50)/30)-1)); const a=lo[k], b=a+29; return{k:'g'+(k+2),lab:a+'-'+b+'y',ord:k+2}; }
 /* 1ホールの事実＋SG分解。owner/スコア無しは ok:false */
 function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
   if(!o||man==null) return {ok:false};
@@ -952,7 +955,10 @@ function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sg
     if(st.sgOk){ acc.sgHoles++; acc.sgOverPar+=st.overPar; acc.sg.tee+=st.sg.tee; acc.sg.carry+=st.sg.carry; acc.sg.short+=st.sg.short; acc.sg.putt+=st.sg.putt; acc.sgPen.tee+=st.sgPen.tee; acc.sgPen.carry+=st.sgPen.carry; acc.sgPen.short+=st.sgPen.short;
       if(acc.hb[st.par]){ acc.hb[st.par].A+=st.A; acc.hb[st.par].B+=st.B; acc.hb[st.par].n++; } }
     nonPuttShots(h).forEach(s=>{ if(!s.club)return; const c=acc.clubRes[s.club]||(acc.clubRes[s.club]={o:0,dash:0,x:0,pen:0,n:0}); c.n++; const v=s.res||''; if(v==='〇')c.o++; else if(v==='×')c.x++; else if(v==='+1'||v==='+2')c.pen++; else c.dash++; });
-    if(st.approachYard!=null){ const y=st.approachYard, b=y<=50?'≤50y':y<=100?'51-100y':y<=150?'101-150y':'151y+'; const bb=acc.band[b]||(acc.band[b]={n:0,gir:0}); bb.n++; if(st.GIR)bb.gir++; }
+    /* 距離帯別グリーンオン率：ショット単位。その1打でONしたか（打数＝パーオン可否とは無関係）。
+       par4/5 の第1打（ティーショット）と着弾ライ未入力は除外 */
+    nonPuttShots(h).forEach(function(s,i){ if(s.yard==null||!s.lie)return; if(i===0&&st.par>=4)return;
+      const b=gonBand(s.yard); const bb=acc.band[b.k]||(acc.band[b.k]={lab:b.lab,ord:b.ord,n:0,on:0}); bb.n++; if(s.lie==='ON')bb.on++; });
     if(st.firstPutt){ const fp=st.firstPutt;
       const rem=(fp.r1==='外れ')?(fp.r2!=null?Math.abs(fp.r2):(fp.rem!=null?fp.rem:null)):null, md=(fp.r1==='外れ')?puttMissDir(fp):{v:'',s:''};
       if(fp.r1&&fp.dist!=null){ const pb=puttBand(fp.dist,fp.unit); const ob=acc.pbBand[pb.k]||(acc.pbBand[pb.k]={lab:pb.lab,ord:pb.ord,n:0,in:0,miss:0,remSum:0,remN:0,over:0,short:0,dirN:0}); ob.n++; if(fp.r1==='in')ob.in++;
@@ -1054,9 +1060,9 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
     return '<div class="frow" style="margin-top:8px; align-items:center; gap:8px"><span style="width:36px; font-weight:800">'+esc(c)+'</span><div style="flex:1; display:flex; height:15px; border-radius:4px; overflow:hidden">'+seg+'</div><span style="width:40px; text-align:right" class="sm muted">'+Math.round(r.o/n*100)+'%</span></div>'; }).join('');
   var clubSec=clubs.length?('<h2>クラブ別ナイス率（〇/-/×/+）</h2><div class="card">'+clubHtml+'<div class="sm muted" style="margin-top:8px"><span style="color:#1d9e75">〇</span> / <span style="color:#888780">-</span> / <span style="color:#e0a800">×</span> / <span style="color:#d9534f">+1,+2</span></div></div>'):'';
   /* 距離帯別GIR */
-  var bands=['≤50y','51-100y','101-150y','151y+'].filter(function(b){return a.band[b];});
-  var bandHtml=bands.map(function(b){ var bb=a.band[b]; var p=Math.round(bb.gir/bb.n*100); return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:72px" class="sm muted">'+b+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+p+'%; height:15px; border-radius:4px; background:#378add"></div></div><span style="width:62px; text-align:right" class="sm muted">'+p+'% ('+bb.n+')</span></div>'; }).join('');
-  var bandSec=bands.length?('<h2>距離帯別パーオン率</h2><div class="card">'+bandHtml+'</div>'):'';
+  var bands=Object.keys(a.band).sort(function(x,y){return a.band[x].ord-a.band[y].ord;});
+  var bandHtml=bands.map(function(k){ var bb=a.band[k]; var p=Math.round(bb.on/bb.n*100); return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:72px" class="sm muted">'+bb.lab+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+p+'%; height:15px; border-radius:4px; background:#378add"></div></div><span style="width:78px; text-align:right; white-space:nowrap" class="sm muted">'+p+'% ('+bb.on+'/'+bb.n+')</span></div>'; }).join('');
+  var bandSec=bands.length?('<h2>距離帯別グリーンオン率</h2><div class="sm muted" style="margin:0 4px 8px">その距離から打った1打がグリーンに乗った割合（打数は問わない）。パー4・5のティーショットと着弾ライ未入力は除外。</div><div class="card">'+bandHtml+'</div>'):'';
   /* パッティング深掘り（1stパット：first 優先・旧 details[0] で代替） */
   var pbKeys=Object.keys(a.pbBand).sort(function(x,y){return a.pbBand[x].ord-a.pbBand[y].ord;});
   var bar=function(p,col){ return '<div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+p+'%; height:15px; border-radius:4px; background:'+col+'"></div></div>'; };
