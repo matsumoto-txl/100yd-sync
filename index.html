@@ -211,7 +211,9 @@ function defTags(){ return {
   putt:['厚く読みすぎ','薄く読みすぎ','ちょうど','思い通り','芯外し','パンチ','緩んだ','押し出し','ひっかけ'] }; }
 /* defTags の不足分を「起動時に1回だけ」端末へ配る版数。defTags に基本タグを増やしたら、この数を上げて再配布する。 */
 const TAGS_SEED_VER=1;
-const LV=[[1,'Lv1 パットのみ'],[2,'Lv2 100y以内'],[3,'Lv3 フル']];
+/* 入力レベルは2段階（2026-10-21 ★確定）。保存値は 1＝パットのみ／3＝フル。旧 Lv2「100y以内」は動きがフルと同一のため、読むときにフル扱い（保存データは書き換えない） */
+const LV=[[1,'パットのみ'],[3,'フル']];
+function lvNorm(v){ return v===1?1:3; }
 const CRESULT=[['best','最高'],['ok','合格'],['meh','イマイチ'],['ng','NG']];
 const ARESULT=[['in','in'],['ok','OK'],['meh','イマイチ'],['ng','NG']];
 const CINTENT=[['safe','安全'],['normal','普通'],['attack','勝負'],['reckless','無謀']];
@@ -230,8 +232,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.32.0';
-const APP_BUILD='2026-10-20';/*v2.32.0 コースマスター：📷 写真から取り込み（Gemini でスコアカードを読み取り・ティーは毎回選択／使った名前を候補化・印刷小計と照合して！・確認後に非破壊追加）*/
+const APP_VERSION='2.33.0';
+const APP_BUILD='2026-10-21';/*v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -335,7 +337,13 @@ function cmExportFile(){ try{ var arr=coursesEdit||DB.courses();
 /* ============ 旧データ（golf.*）復元 ============ */
 function legacyRounds(){ try{ return JSON.parse(localStorage.getItem('golf.rounds')||'[]'); }catch(e){ return []; } }
 function legacyRound(id){ try{ return JSON.parse(localStorage.getItem('golf.round.'+id)||'null'); }catch(e){ return null; } }
-function pendingLegacy(){ const v2=new Set(DB.index().map(x=>x.id)); return legacyRounds().filter(x=>!v2.has(x.id)); }
+/* 未読み込みの旧ラウンド：v2に無い・読み込み済みの印(migrated)が無い・「読み込まない」の印(legacyDismissed)が無いもの。読み込み後にv2側で削除した分が復活しないように印を見る（2026-10-21） */
+function legacyDismissedSet(){ try{ return new Set(JSON.parse(localStorage.getItem(NS+'legacyDismissed')||'[]')); }catch(e){ return new Set(); } }
+function pendingLegacy(){ const v2=new Set(DB.index().map(x=>x.id)), mg=migratedSet(), ds=legacyDismissedSet(); return legacyRounds().filter(x=>!v2.has(x.id)&&!mg.has(x.id)&&!ds.has(x.id)); }
+/* 「読み込まない」：案内を出さない印だけ新キーに追加。旧データ本体は消さない・変えない */
+function dismissLegacy(){ const ds=legacyDismissedSet(); pendingLegacy().forEach(x=>ds.add(x.id));
+  try{ localStorage.setItem(NS+'legacyDismissed', JSON.stringify([...ds])); }catch(e){}
+  alert('今後この案内は出しません。以前の記録（元データ）は端末に残してあり、ホームの「🔍 以前の記録（元データ）を確認」から見られます。'); render(); }
 function convOwner(oo){ if(!oo) return null;
   const SV={up:'上り',down:'下り',flat:'フラット'}, SH={hook:'フック',slice:'スライス',straight:'まっすぐ'};
   const PR={in:'カップイン',ok:'OK',miss:'外れ'}, EX={3:'ナイス',2:'まずまず',1:'ミス'};
@@ -359,7 +367,7 @@ function convertLegacy(o){ const st=DB.settings();
     puttScore:(h.owner&&h.owner.puttNo!=null?h.owner.puttNo:null), note:h.note||'', owner:convOwner(h.owner) }));
   return { roundId:o.roundId, date:o.date, logLevel:o.logLevel||3, course:{name:(o.course&&o.course.name)||'コース未設定',halves}, players:o.players||[{id:'p1',name:'自分',owner:true}], holes };
 }
-function importLegacy(){ const idx=legacyRounds(); let n=0;
+function importLegacy(){ const idx=pendingLegacy(); let n=0;
   idx.forEach(x=>{ try{ const old=legacyRound(x.id); if(!old)return; if(DB.round(x.id)){ markMigrated(x.id); return; }
     DB.saveRound(convertLegacy(old)); markMigrated(x.id); n++; }catch(e){} });
   alert(n+'件の以前の記録を読み込みました。（元データも残しています）'); render(); }
@@ -386,6 +394,7 @@ function restoreBackup(mode){ const inp=document.createElement('input'); inp.typ
 /* #5 未移行の旧データ（golf.rounds / golf.round.* / golf.v2.migrated）も復元。exportData は golf.* 全キーを書き出すのに doRestore は v2 しか戻さなかった非対称を解消（§12）。非破壊：overwrite=同IDを上書き／別名追加=無いものだけ。cnt=新規追加した旧ラウンド数。 */
 function restoreLegacy(data, overwrite){ let cnt=0; try{
     if(data['golf.v2.migrated'] && localStorage.getItem('golf.v2.migrated')==null) localStorage.setItem('golf.v2.migrated', data['golf.v2.migrated']);
+    if(data['golf.v2.legacyDismissed'] && localStorage.getItem('golf.v2.legacyDismissed')==null) localStorage.setItem('golf.v2.legacyDismissed', data['golf.v2.legacyDismissed']);
     const li=data['golf.rounds']?JSON.parse(data['golf.rounds']):null; if(!li)return 0;
     const cur=JSON.parse(localStorage.getItem('golf.rounds')||'[]'); const ids=new Set(cur.map(x=>x.id)); const merged=cur.slice();
     li.forEach(x=>{ const rk='golf.round.'+x.id; if(!data[rk])return;
@@ -476,7 +485,7 @@ function renderExportSel(){
 }
 function labPair(arr,v){ const x=arr.find(p=>p[0]===v); return x?x[1]:(v||''); }
 function buildRoundText(r){ const lines=[]; const t=selfTotal(r), d=detailScore(r); const pu=DB.settings().units.putt;
-  lines.push('=== '+((r.course&&r.course.name)||'コース未設定')+' ・ '+r.date+' ・ '+labPair(LV,r.logLevel)+' ===');
+  lines.push('=== '+((r.course&&r.course.name)||'コース未設定')+' ・ '+r.date+' ・ '+labPair(LV,lvNorm(r.logLevel))+' ===');
   lines.push('スコア合計: '+(t!=null?t:'—')+(d?(' ／ 詳細 '+d.s+'-'+d.a+'-'+d.p):''));
   if(r.themes){ if(r.themes[0])lines.push('前半テーマ: '+r.themes[0]); if(r.themes[1])lines.push('後半テーマ: '+r.themes[1]); }
   const ps=r.players.filter(p=>p.owner||p.name);
@@ -982,6 +991,38 @@ function statsRounds(){ const scope=S.statsScope||'last5'; const idx=DB.index();
   if(scope==='cur') return S.round?[S.round]:[];
   if(scope==='last5') ids=ids.slice(0,5); else if(scope==='last10') ids=ids.slice(0,10);
   return ids.map(function(id){ return (id===cur&&S.round)?S.round:DB.round(id); }).filter(Boolean); }
+/* スコアの推移（2026-10-21 ★確定）：スタッツの対象切替に従う（「このラウンド」は直近10R）。古い順・上＝トータル／下＝パット数。
+   18ホールそろわないラウンドは18ホール換算（記録ホール数で割って×18）＋白抜きの点 */
+function trendRounds(){ const scope=S.statsScope||'last5'; if(scope!=='cur') return statsRounds();
+  const cur=S.round&&S.round.roundId; return DB.index().slice(0,10).map(function(x){ return (x.id===cur&&S.round)?S.round:DB.round(x.id); }).filter(Boolean); }
+function roundTrendPoint(r){ const pid=ownerPid(r); let sc=0,nS=0,pt=0,nP=0;
+  r.holes.forEach(function(h){ const v=h.scores[pid]; if(v==null)return; sc+=v; nS++;
+    const pc=puttCount(h); if(h.puttScore!=null||pc>0){ pt+=pc; nP++; } });
+  if(!nS) return null;
+  return { date:r.date||'', score:nS===18?sc:sc*18/nS, sFull:nS===18, nS:nS,
+    putt:nP?(nP===18?pt:pt*18/nP):null, pFull:nP===18, nP:nP }; }
+function trendPanel(pts,key,fullKey,title,color){ const W=320,H=118,L=34,Rp=20,T=18,B=24;
+  const vs=pts.map(function(p){return p[key];}).filter(function(v){return v!=null;}); if(!vs.length) return '';
+  let lo=Math.min.apply(null,vs), hi=Math.max.apply(null,vs); const pad=Math.max(1,(hi-lo)*0.15); lo=Math.floor(lo-pad); hi=Math.ceil(hi+pad);
+  const n=pts.length, xs=function(i){ return n===1?(L+W-Rp)/2:L+i*(W-L-Rp)/(n-1); }, ys=function(v){ return T+(hi-v)/(hi-lo)*(H-T-B); };
+  const step=Math.ceil(n/8); let g='';
+  [hi,(hi+lo)/2,lo].forEach(function(v){ const y=ys(v); g+='<line x1="'+L+'" x2="'+(W-Rp)+'" y1="'+y+'" y2="'+y+'" stroke="var(--border)" stroke-width="0.6"></line><text x="'+(L-4)+'" y="'+(y+3)+'" font-size="9" text-anchor="end" fill="var(--muted)">'+Math.round(v)+'</text>'; });
+  let path='', dots='';
+  pts.forEach(function(p,i){ const v=p[key]; const x=xs(i);
+    if(i%step===0||i===n-1){ const d=p.date.slice(5).replace('-','/'); g+='<text x="'+x+'" y="'+(H-8)+'" font-size="9" text-anchor="middle" fill="var(--muted)">'+esc(d)+'</text>'; }
+    if(v==null)return; const y=ys(v); path+=(path?' L ':'M ')+x.toFixed(1)+' '+y.toFixed(1);
+    const full=p[fullKey]; dots+='<circle cx="'+x+'" cy="'+y+'" r="3.6" fill="'+(full?color:'var(--surface)')+'" stroke="'+color+'" stroke-width="1.6"></circle>';
+    if(i%step===0||i===n-1) dots+='<text x="'+x+'" y="'+(y-7)+'" font-size="10" font-weight="700" text-anchor="middle" fill="var(--text)">'+(full?v:v.toFixed(1))+'</text>'; });
+  return '<div class="sm" style="font-weight:700; margin:2px 0 0">'+title+'</div><svg viewBox="0 0 '+W+' '+H+'" style="width:100%; height:auto; display:block">'+g+'<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"></path>'+dots+'</svg>'; }
+function trendSection(){ const scope=S.statsScope||'last5';
+  const pts=trendRounds().map(roundTrendPoint).filter(Boolean).sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
+  const lab=scope==='cur'?'直近10R':'対象ラウンド';
+  if(pts.length<2) return '<h2>スコアの推移</h2><div class="card sm muted">推移を描くには、スコアを入れたラウンドが2つ以上必要です。</div>';
+  const part=pts.some(function(p){ return !p.sFull||(p.putt!=null&&!p.pFull); });
+  return '<h2>スコアの推移（'+lab+'・'+pts.length+'R）</h2><div class="card">'
+    +trendPanel(pts,'score','sFull','トータル','#4f8cff')+trendPanel(pts,'putt','pFull','パット数','#1d9e75')
+    +(part?'<div class="sm muted" style="margin-top:6px">白抜きの点＝18ホールそろっていないラウンド（記録ホール数で割って×18 の換算値）。</div>':'')
+    +(scope==='cur'?'<div class="sm muted" style="margin-top:4px">「このラウンド」選択中のため、推移は直近10Rで表示しています。</div>':'')+'</div>'; }
 function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   $('topsub').textContent='スタッツ'; $('topbtns').innerHTML='';
   const rounds=statsRounds(), a=aggStats(rounds), nR=Math.max(1,rounds.length);
@@ -1095,7 +1136,7 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
     +(rsKeys.length?card('読みの過不足（左右に外れたとき）',rsHtml,'<span style="color:#7f77dd">高い側＝読みすぎ傾向</span> / <span style="color:#d85a30">低い側＝読み不足傾向</span>（右打ち前提）'):'')):'';
   $('app').innerHTML=head
     +'<div class="sm muted" style="margin:0 4px 10px">対象 '+rounds.length+'ラウンド・'+a.holes+'ホール</div>'
-    +sgSection+hundred+core+scoreSec+clubSec+bandSec+puttDeep+'<div style="height:24px"></div>';
+    +trendSection()+sgSection+hundred+core+scoreSec+clubSec+bandSec+puttDeep+'<div style="height:24px"></div>';
 }
 
 /* ============ ホーム ============ */
@@ -1122,7 +1163,9 @@ function renderHome(){
     <div style="font-weight:800; color:var(--amber)">以前の記録が ${pend.length} 件あります（データは消えていません）</div>
     <div class="sm muted" style="margin:4px 0 10px">旧バージョンの記録が端末内に残っています。読み込む前に、念のため<b>バックアップ</b>を書き出しておくことをおすすめします。元データも残します。</div>
     <button class="ghostbtn" style="margin-bottom:8px" onclick="exportData()">📥 先にバックアップを書き出す（JSON）</button>
-    <button class="bigbtn" style="border-color:var(--amber); background:var(--amber); color:#3a2a00" onclick="importLegacy()">以前の記録を読み込む</button></div>`:'';
+    <button class="bigbtn" style="border-color:var(--amber); background:var(--amber); color:#3a2a00" onclick="importLegacy()">以前の記録を読み込む</button>
+    <button class="ghostbtn" style="margin-top:8px" onclick="dismissLegacy()">読み込まない（今後この案内を出さない）</button>
+    <div class="sm muted" style="margin-top:4px">読み込まなくても元データは消えません（「🔍 以前の記録（元データ）を確認」から見られます）。</div></div>`:'';
   $('app').innerHTML=`
     ${recover}
     <h2>ラウンド</h2>
@@ -1202,7 +1245,7 @@ function renderSetup(){
     ${masterCard}
     ${block(0)}${block(1)}
     <h2>プレイヤー（最大4人）</h2><div class="card grid2">${setup.players.map((p,i)=>`<div class="prow"><span class="chip">${i===0?'自分':'同伴'+i}</span><input type="text" value="${esc(p)}" placeholder="${i===0?'自分の名前':'同伴者名（空欄で不参加）'}" oninput="setup.players[${i}]=this.value"></div>`).join('')}</div>
-    <h2>記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${setup.logLevel===v?'on':''}" onclick="setup.logLevel=${v};render()">${l}</div>`).join('')}</div></div>`;
+    <h2>記録レベル</h2><div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${lvNorm(setup.logLevel)===v?'on':''}" onclick="setup.logLevel=${v};render()">${l}</div>`).join('')}</div></div>`;
   $('topsub').textContent=editing?'ラウンド設定':'新規ラウンド';
   $('topbtns').innerHTML=`${editing?`<button class="iconbtn" onclick="goHome()">ホームへ</button> `:''}<button class="iconbtn primary" onclick="commitSetup()">${editing?'保存':'開始'}</button>`;
 }
@@ -1317,7 +1360,7 @@ function renderAppSettings(){
   const secCourse=`<div class="card">
       <div class="sm muted" style="margin-bottom:8px">9hごとに Par・距離を保存し、ラウンド設定で選んで流し込めます（27h/36hは1施設に9hを複数束ねる）。ラウンドを開始/保存すると自動で保存されます。</div>
       <button class="ghostbtn" onclick="goCourses()">コースマスターを編集（${DB.courses().length}施設）</button></div>`;
-  const secLog=`<div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${a.logLevel===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>`;
+  const secLog=`<div class="card"><div class="seg">${LV.map(([v,l])=>`<div class="segopt ${lvNorm(a.logLevel)===v?'on':''}" onclick="setAsLv(${v})">${l}</div>`).join('')}</div></div>`;
   const secBackup=`<div class="card grid2">
       <button class="ghostbtn" onclick="exportData()">📥 バックアップ書き出し（JSON・復元可）</button>
       <button class="ghostbtn" onclick="restoreBackup('copy')">📤 復元：別名で追加（推奨・非破壊）</button>
@@ -1585,7 +1628,7 @@ function renderCard(){
       ${ps.map(p=>`<div class="cell">${esc(p.name)}${p.owner?' ★':''}</div>`).join('')}</div>
       ${rows}${totalsHtml}</div>`;
   $('topsub').textContent=esc(r.course.name||'ラウンド')+' ・ '+r.date;
-  $('topbtns').innerHTML=`<button class="iconbtn" onclick="openStats()">📈 スタッツ</button> <button class="iconbtn" onclick="aiBulkStart()">🤖 一括解析</button> <button class="iconbtn" onclick="openAnalysis()">📊 分析</button> <button class="iconbtn" onclick="editSetup()">⚙ 設定</button>`;
+  $('topbtns').innerHTML=`<button class="iconbtn" onclick="openStats()">📈 スタッツ</button> <button class="iconbtn" onclick="aiBulkStart()">🤖 一括解析</button> <button class="iconbtn" onclick="openAnalysis()">📊 パット分析</button> <button class="iconbtn" onclick="editSetup()">⚙ 設定</button>`;
 }
 function setHalf(h){ S.half=h; renderCard(); }
 /* ===== 分析画面（ラウンド中・1stパットの止まり位置を縮小一覧） ===== */
@@ -1611,11 +1654,11 @@ function renderAnalysis(){
     const sub=(f&&(f.zone||f.r1))?((f.dist!=null?f.dist+u+'・':'')+(f.read||'')+' → '+(f.r1||'')+(f.r1==='外れ'?('・'+(f.r2!=null?(((f.r2>0?'+':'')+f.r2)+u+'・'):'')+(f.zone||'')):'')):'';
     cards+='<div class="card" style="padding:8px"><div class="sm" style="font-weight:700; margin-bottom:4px">No.'+h.holeNo+' <span class="muted">Par '+h.par+'</span></div>'+mini+'<div class="sm muted" style="margin-top:4px; text-align:center; min-height:14px">'+esc(sub)+'</div></div>';
   }
-  $('app').innerHTML='<div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">分析</div></div>'
+  $('app').innerHTML='<div class="backbar"><button class="backbtn" onclick="backToCard()">‹ スコアカード</button><div class="sp"></div><div class="sm muted">パット分析</div></div>'
     +'<div class="halfsw"><button class="'+(S.half===0?'on':'')+'" onclick="setHalfA(0)">前半 '+esc(hn(0))+'</button><button class="'+(S.half===1?'on':'')+'" onclick="setHalfA(1)">後半 '+esc(hn(1))+'</button></div>'
     +'<h2 style="margin:10px 4px 6px">1stパットの止まり位置（'+(S.half===0?'前半':'後半')+'）</h2>'
     +'<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 4px 24px">'+cards+'</div>';
-  $('topsub').textContent='分析'; $('topbtns').innerHTML='';
+  $('topsub').textContent='パット分析'; $('topbtns').innerHTML='';
 }
 
 /* ============ 詳細（ショット/アプローチ/パット） ============ */
