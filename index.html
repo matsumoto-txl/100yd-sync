@@ -232,8 +232,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.33.0';
-const APP_BUILD='2026-10-21';/*v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
+const APP_VERSION='2.34.0';
+const APP_BUILD='2026-10-22';/*v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -273,9 +273,12 @@ const DB={
     try{ localStorage.setItem('golf.v2.bak.courses', j); localStorage.setItem('golf.v2.bak.courses.at', new Date().toISOString()); }catch(e){} }
 };
 /* ============ コースマスター：ID発行・自動保存（upsert）・復元マージ ============ */
+/* 9hの開始ホール（任意・1〜18の整数。無ければ未設定＝ラウンドの既定 前半1/後半10） */
+function nineStart(v){ v=+v; return (Number.isInteger(v)&&v>=1&&v<=18)?v:null; }
 function cmUid(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 /* ラウンド開始/保存時に「当然に」マスターへ保存する（ボタンなし）。
    突合せ：施設=name、nine=ハーフ名（空なら OUT/IN）。既存は pars/yards を最新で上書き・無ければ追加。
+   開始ホール（startHole）は、マスター側が未設定のときだけ記録する（設定済みなら上書きしない）。
    ★過去ラウンドには影響しない（ラウンドは開始時の値を holes にコピー済み＝マスターはテンプレートのみ）。 */
 function upsertCourseMaster(cname, halves){ try{
   cname=(cname||'').trim(); if(!cname || cname==='コース未設定') return;
@@ -287,8 +290,11 @@ function upsertCourseMaster(cname, halves){ try{
     const yards=(hf.yards||[]).slice(0,9);
     const nm=(hf.name||'').trim() || (hi===0?'OUT':'IN');
     let nine=fac.nines.find(n=>(n.name||'').trim()===nm);
-    if(!nine){ fac.nines.push({id:cmUid('n-'), name:nm, pars, yards}); }
-    else { nine.pars=pars; nine.yards=yards; }
+    const sh=nineStart(hf.startHole);
+    if(!nine){ const nn={id:cmUid('n-'), name:nm, pars, yards}; if(sh)nn.startHole=sh; fac.nines.push(nn); }
+    else { nine.pars=pars; nine.yards=yards;
+      /* 開始ホールはマスターが正。ラウンドでの例外的な変更でマスターを上書きしない（未設定のときだけ記録） */
+      if(!nineStart(nine.startHole)&&sh) nine.startHole=sh; }
   });
   DB.saveCourses(list);
 }catch(e){} }
@@ -299,7 +305,7 @@ function mergeCoursesFromRestore(incoming){ try{
     let fac=list.find(c=>(c.name||'').trim()===nm);
     if(!fac){ fac={id:ic.id||cmUid('c-'), name:nm, nines:[]}; list.push(fac); }
     (ic.nines||[]).forEach(inn=>{ const nn=(inn&&inn.name||'').trim(); if(!nn) return;
-      if(!fac.nines.some(n=>(n.name||'').trim()===nn)) fac.nines.push({id:inn.id||cmUid('n-'), name:nn, pars:(inn.pars||[]).slice(0,9), yards:(inn.yards||[]).slice(0,9)}); }); });
+      if(!fac.nines.some(n=>(n.name||'').trim()===nn)){ const nw={id:inn.id||cmUid('n-'), name:nn, pars:(inn.pars||[]).slice(0,9), yards:(inn.yards||[]).slice(0,9)}; const sh=nineStart(inn.startHole); if(sh)nw.startHole=sh; fac.nines.push(nw); } }); });
   DB.saveCourses(list);
 }catch(e){} }
 /* コース情報のインポート（JSON・非破壊）／エクスポート。編集中の coursesEdit に add-only でマージし、ユーザーが「保存」で確定 */
@@ -318,7 +324,7 @@ function cmMergeInto(inc){ if(!coursesEdit)coursesEdit=[]; const st=DB.settings(
       if(pars.length<9 || pars.some(function(p){return !(p>=3&&p<=6);})) return; /* 妥当なPar9個のみ */
       var yards=(inn.yards||[]).slice(0,9).map(function(y){return (y!=null&&y!=='')?+y:null;});
       for(var i=0;i<9;i++){ if(yards[i]==null||isNaN(yards[i])) yards[i]=st.teeDefault[pars[i]]||350; }
-      if(!fac.nines.some(function(n){return (n.name||'').trim()===nn;})){ fac.nines.push({id:inn.id||cmUid('n-'), name:nn, pars:pars, yards:yards}); addN++; }
+      if(!fac.nines.some(function(n){return (n.name||'').trim()===nn;})){ var nw={id:inn.id||cmUid('n-'), name:nn, pars:pars, yards:yards}; var sh=nineStart(inn.startHole); if(sh)nw.startHole=sh; fac.nines.push(nw); addN++; }
     }); });
   return {addF:addF, addN:addN}; }
 function cmImportFile(){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
@@ -1211,6 +1217,7 @@ function applyNine(hi,nid){ const fac=DB.courses().find(c=>c.id===setup.pickCour
   const n=fac.nines.find(x=>x.id===nid); if(!n){ render(); return; }
   const st=DB.settings(), H=setup.halves[hi];
   H.name=n.name; H.pars=n.pars.slice();
+  if(nineStart(n.startHole)) H.startHole=nineStart(n.startHole); /* マスターの開始ホール（下の「開始ホール」で例外的に変更可） */
   H.yards=(n.yards&&n.yards.length)?n.yards.slice():n.pars.map(p=>st.teeDefault[p]||350);
   if(!(setup.courseName||'').trim()) setup.courseName=fac.name;
   render(); }
@@ -1221,12 +1228,12 @@ function setSStart(hi,v){ setup.halves[hi].startHole=+v; render(); }
 function renderSetup(){
   const editing=!!setup.editing, pc=pastCourses();
   const courses=DB.courses(), fac=courses.find(c=>c.id===setup.pickCourse);
-  const nineOpts=(f,sel)=>'<option value="">– 選択 –</option>'+f.nines.map(n=>`<option value="${n.id}" ${sel===n.id?'selected':''}>${esc(n.name||'(名称なし)')}（Par${n.pars.reduce((a,b)=>a+b,0)}）</option>`).join('');
+  const nineOpts=(f,sel)=>'<option value="">– 選択 –</option>'+f.nines.map(n=>`<option value="${n.id}" ${sel===n.id?'selected':''}>${esc(n.name||'(名称なし)')}（${nineStart(n.startHole)?nineStart(n.startHole)+'番〜・':''}Par${n.pars.reduce((a,b)=>a+b,0)}）</option>`).join('');
   const masterCard=`<h2>コースマスターから流し込む</h2><div class="card">
     ${courses.length?`<div class="setline"><span class="slab">施設</span><select onchange="pickCourseMaster(this.value)"><option value="">– 選択 –</option>${courses.map(c=>`<option value="${c.id}" ${setup.pickCourse===c.id?'selected':''}>${esc(c.name)}（${c.nines.length}×9h）</option>`).join('')}</select></div>
       ${fac?`<div class="setline"><span class="slab">前半に</span><select onchange="applyNine(0,this.value)">${nineOpts(fac,setup.pickFront)}</select></div>
              <div class="setline"><span class="slab">後半に</span><select onchange="applyNine(1,this.value)">${nineOpts(fac,setup.pickBack)}</select></div>`:''}`:`<div class="sm muted">まだコースマスターがありません。ラウンドを開始/保存すると、入力した内容が自動でマスターに保存され、次回から選べます。</div>`}
-    <div class="sm muted" style="margin-top:6px">選ぶと下の前半/後半へ流し込みます（流し込み後も手で修正できます）。開始/保存すると入力内容は自動でマスターにも保存されます。</div>
+    <div class="sm muted" style="margin-top:6px">選ぶと下の前半/後半へ流し込みます（開始ホールもマスターの値を使います）。流し込み後も手で修正できます。開始/保存すると入力内容は自動でマスターにも保存されます。</div>
     <button class="ghostbtn" style="margin-top:8px" onclick="goCourses()">コースマスターを編集</button></div>`;
   const block=(hi)=>{ const HH=setup.halves[hi];
     const rows=[...Array(9)].map((_,i)=>{ const no=HH.startHole+i;
@@ -1400,7 +1407,7 @@ function mkNine(){ const st=DB.settings(); return { id:cmUid('n-'), name:'', par
 function backFromCourses(){ S.view=S.returnView||'appset'; S.returnView=null; render(); }
 function cmCancel(){ coursesEdit=null; cmSel=null; cmWarn={}; backFromCourses(); }
 function cmSave(){ const clean=(coursesEdit||[]).map(c=>({ id:c.id||cmUid('c-'), name:(c.name||'').trim(),
-    nines:(c.nines||[]).map(n=>({ id:n.id||cmUid('n-'), name:(n.name||'').trim(), pars:n.pars.slice(0,9), yards:n.yards.slice(0,9) })) }))
+    nines:(c.nines||[]).map(n=>{ const o={ id:n.id||cmUid('n-'), name:(n.name||'').trim(), pars:n.pars.slice(0,9), yards:n.yards.slice(0,9) }; const sh=nineStart(n.startHole); if(sh)o.startHole=sh; return o; }) }))
     .filter(c=>c.name || c.nines.length);
   DB.saveCourses(clean); coursesEdit=null; cmSel=null; cmWarn={}; backFromCourses(); }
 function cmOpenFac(ci){ cmSel=ci; S.view='courseEdit'; render(); }
@@ -1412,6 +1419,7 @@ function cmSetFacName(ci,v){ coursesEdit[ci].name=v; }
 function cmAddNine(ci){ coursesEdit[ci].nines.push(mkNine()); render(); }
 function cmDelNine(ci,ni){ if(!confirm('この9hを削除します。よろしいですか？'))return; coursesEdit[ci].nines.splice(ni,1); render(); }
 function cmSetNineName(ci,ni,v){ coursesEdit[ci].nines[ni].name=v; }
+function cmSetNineStart(ci,ni,v){ const n=coursesEdit[ci].nines[ni], sh=nineStart(v); if(sh)n.startHole=sh; else delete n.startHole; render(); }
 
 /* ============ コースマスター：📷 写真から取り込み（Gemini・確認後に非破壊追加／DESIGN_course_master「写真から取り込み」） ============
    ・ティーは取り込むたびに選ぶ。使ったティー名は golf.v2.teeNames（新規キー・追加のみ）に貯めて次回の選択肢にする。
@@ -1565,9 +1573,11 @@ function renderCourseEdit(){ const list=coursesEdit||[], ci=cmSel;
   const c=list[ci];
   const nineBlock=(ni)=>{ const n=c.nines[ni];
     const rows=[...Array(9)].map((_,i)=>{ const pick=p=>`<td class="parpick ${n.pars[i]===p?'on':''}" onclick="cmSetPar(${ci},${ni},${i},${p})">${p}</td>`;
-      return `<tr><td class="hno">${i+1}</td>${pick(3)}${pick(4)}${pick(5)}<td><select onchange="cmSetYard(${ci},${ni},${i},this.value)">${yardOpts(n.yards[i])}</select></td></tr>`; }).join('');
+      return `<tr><td class="hno">${(nineStart(n.startHole)||1)+i}</td>${pick(3)}${pick(4)}${pick(5)}<td><select onchange="cmSetYard(${ci},${ni},${i},this.value)">${yardOpts(n.yards[i])}</select></td></tr>`; }).join('');
+    const sh=nineStart(n.startHole);
     return `<div class="card" style="margin-top:8px">
       <div class="setline"><span class="slab">9h名</span><input type="text" value="${esc(n.name)}" placeholder="例：梅／OUT" oninput="cmSetNineName(${ci},${ni},this.value)"><button class="trash" style="min-width:40px" onclick="cmDelNine(${ci},${ni})">✕</button></div>
+      <div class="setline"><span class="slab">開始ホール</span><select onchange="cmSetNineStart(${ci},${ni},this.value)"><option value="" ${sh?'':'selected'}>未設定（前半1／後半10）</option>${[...Array(18)].map((_,k)=>`<option value="${k+1}" ${sh===k+1?'selected':''}>${k+1}</option>`).join('')}</select></div>
       ${cmWarn[n.id]?'<div class="sm cmwarn" style="margin:4px 2px 6px; font-weight:700">！ 写真の読み取りで要確認：'+esc(cmWarn[n.id])+'</div>':''}
       <div class="cardwrap"><table class="holetbl"><tr><th>ホール</th><th>3</th><th>4</th><th>5</th><th>距離(y)</th></tr>${rows}</table></div>
       <div class="sm muted center" style="margin-top:6px">パー計 ${n.pars.reduce((a,b)=>a+b,0)}</div></div>`; };
