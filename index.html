@@ -232,8 +232,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.34.0';
-const APP_BUILD='2026-10-22';/*v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
+const APP_VERSION='2.35.0';
+const APP_BUILD='2026-11-04';/*v2.35.0 旧アプローチ欄の打をショット欄へまとめる（同意制・移行前は別キーに保存）・AI解析/旧形式読込はショット欄へ・残り未入力の目印／v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -359,7 +359,7 @@ function convOwner(oo){ if(!oo) return null;
   (oo.shots||[]).forEach(s=>{ const isA=s.phase==='approach';
     const bits=[]; if(s.result!=null)bits.push('結果:'+((isA?RAP:RTG)[s.result]||s.result)); if(s.intent)bits.push('意図:'+(INl[s.intent]||s.intent));
     const shot={club:s.club||null,pen:0,pre:(s.tagsPre||s.tags||[]).slice(),post:(s.tagsPost||[]).slice(),note:bits.join(' / '),yard:(s.remainYard!=null?s.remainYard:null)};
-    if(isA) approach.shots.push(shot); else through.shots.push(shot); });
+    through.shots.push(shot); }); /* v2.35.0 旧アプローチ欄には入れない（画面に無い）。打順のままショット欄へ */
   const stroked=(oo.putts||[]).filter(p=>!p.ok), okAny=(oo.putts||[]).some(p=>p.ok);
   const details=stroked.map(p=>({ dist:(p.steps!=null?p.steps:null), effDist:(p.effSteps!=null?p.effSteps:null),
     slopeV:SV[p.slopeV]||null, slopeH:SH[p.slopeH]||null, result:PR[p.result]||null, exec:EX[p.exec]||null, touch:(p.touch!=null?p.touch:0), tags:(p.tags||[]).slice() }));
@@ -652,24 +652,25 @@ function mergeArr(dst,src){ (src||[]).forEach(t=>{ if(t&&dst.indexOf(t)<0)dst.pu
 function clubNames(){ return DB.settings().clubs.map(c=>c.name); }
 function extractPrompt(noteText){ const t=DB.settings().tags, cn=clubNames(); const pu=DB.settings().units.putt; const L=a=>'['+(a||[]).join('、')+']';
   return 'あなたはゴルフ記録の構造化アシスタントです。以下の「ホールのメモ」を読み、1打ずつに分解して【JSONオブジェクトのみ】を出力してください。前置き・解説・コードフェンスは禁止。\n'
-    +'出力スキーマ:\n{"shots":[{"stage":"through|approach|putt","club":<番手 or null>,"pre":[..],"post":[..],"yard":<残りヤード数 or null>,"dist":<パットの距離('+pu+') or null>,"result":<"カップイン"|"OK"|"外れ" or null>,"lie":<"FW"|"ラフ"|"バンカー"|"ON"|"花道"|"カラー"|"OB・ペナ"|"林・他" or null>,"res":<"〇"|"×"|"+1"|"+2" or null>,"note":<語彙に無い補足 or "">}],"leftover":<全体補足 or "">}\n'
+    +'出力スキーマ:\n{"shots":[{"stage":"through|putt","club":<番手 or null>,"pre":[..],"post":[..],"yard":<残りヤード数 or null>,"dist":<パットの距離('+pu+') or null>,"result":<"カップイン"|"OK"|"外れ" or null>,"lie":<"FW"|"ラフ"|"バンカー"|"ON"|"花道"|"カラー"|"OB・ペナ"|"林・他" or null>,"res":<"〇"|"×"|"+1"|"+2" or null>,"note":<語彙に無い補足 or "">}],"leftover":<全体補足 or "">}\n'
     +'ルール:\n'
     +'- lie=その打が止まった場所（着弾）。FW=フェアウェイ, ラフ, バンカー, ON=グリーンに乗った, 花道, カラー, OB・ペナ=OBまたはペナルティ, 林・他=林やその他トラブル。「乗った/オン」→ON。パットの lie は常に null。\n'
     +'- res=その打の出来。会心/ナイス/いい感じ=「〇」, ダフリ/トップ/引っ掛け/プッシュ/チョロ/当り薄/大曲がり=「×」, OB/ペナルティは罰打1つ=「+1」・2つ=「+2」。可もなく不可もなくは null。\n'
     +'- yard は「その打を打つ前」の残り距離。lie/res は「その打の後」の結果。\n'
-    +'- stage: ティー〜グリーンへの運び=through / グリーン周りの寄せ=approach / グリーン上のパット=putt。\n'
+    +'- stage: グリーン上のパット=putt / それ以外の打（ティー・運び・グリーン周りの寄せやバンカーを含む）はすべて through。\n'
     +'- club は次からのみ選ぶ（無ければ null）: '+L(cn)+'\n'
     +'- pre=「状況」（打つ前の状況）、post=「狙い」（打つ前の狙い・意図・球筋・落とし所）。下記の固定タグからのみ選ぶ。\n'
     +'  状況(pre)='+L(t.through.pre)+'\n'
     +'  狙い(post)='+L(t.through.post)+'\n'
     +'- リストに無い言葉（打った後の気づき・反省・結果の球筋など）は pre/post に入れず、その打の note（＝キーポイント）に日本語のまま残す（捨てない）。全体の総括は leftover へ。\n'
-    +'- yard は through/approach の残り距離(数値)、dist はパットの距離('+pu+'・整数)。\n'
+    +'- yard は through の残り距離(数値)。グリーン周りの寄せでも、残り距離が分かれば必ず入れる、dist はパットの距離('+pu+'・整数)。\n'
     +'- 明示されていない項目は推測せず null / 空配列。順序はメモの記述順に従う。\n'
     +'メモ:\n'+noteText; }
 function parseAiJson(txt){ let t=(txt||'').trim(); const m=t.match(/```(?:json)?\s*([\s\S]*?)```/i); if(m)t=m[1].trim();
   const a=t.indexOf('{'), b=t.lastIndexOf('}'); if(a>=0&&b>a)t=t.slice(a,b+1); return JSON.parse(t); }
 function buildRows(parsed){ const m=DB.settings().tags, cn=clubNames();
-  return (parsed.shots||[]).map(s=>{ let stage=['through','approach','putt'].indexOf(s.stage)>=0?s.stage:'through';
+  /* v2.35.0 旧アプローチ欄には書かない（画面に無い欄のため）。putt 以外は全部 through */
+  return (parsed.shots||[]).map(s=>{ let stage=(s.stage==='putt')?'putt':'through';
     const club=cn.indexOf(s.club)>=0?s.club:null;
     const preM=stage==='putt'?[]:(m[stage].pre||[]), postM=stage==='putt'?m.putt:(m[stage].post||[]);
     const filt=(arr,master)=>{ const k=[],d=[]; (arr||[]).forEach(x=>{ if(typeof x!=='string')return; x=x.trim(); if(!x)return; (master.indexOf(x)>=0?k:d).push(x); }); return {k,d}; };
@@ -696,7 +697,7 @@ function aiRowStatus(r,slot,o){ if(r.stage==='putt'){ const d=o.putt.details[slo
   return {code:'conflict',label:'競合（既存 '+(s.club||'?')+'）'}; }
 function aiCancel(){ const hi=aiExtract&&aiExtract.holeIdx; aiExtract=null; if(hi!=null)S.detailHole=hi; S.view='detail'; render(); }
 function aiToggleUse(i){ aiExtract.rows[i].use=!aiExtract.rows[i].use; render(); }
-function aiSetStage(i,v){ aiExtract.rows[i].stage=v; render(); }
+function aiSetStage(i,v){ aiExtract.rows[i].stage=(v==='putt'?'putt':'through'); render(); }
 function aiSetClub(i,v){ aiExtract.rows[i].club=v||null; render(); }
 function aiToggleTag(i,kind,t){ const arr=aiExtract.rows[i][kind], j=arr.indexOf(t); if(j>=0)arr.splice(j,1); else arr.push(t); render(); }
 function aiSetResult(i,v){ const r=aiExtract.rows[i]; r.result=(r.result===v?null:v); render(); }
@@ -857,6 +858,37 @@ function nonPuttShots(h){ if(!h.owner)return []; const o=h.owner;
   const thru=o.through.shots||[], appr=(o.approach&&o.approach.shots)||[];
   const extra=appr.filter(a=>!thru.some(t=>sameShot(t,a)));
   return thru.concat(extra); }
+/* v2.35.0 旧アプローチ欄（owner.approach.shots）をショット欄へまとめる（DESIGN_stats_tags_redesign §11 ★確定）。
+   アプローチのタブは v2.16 以降画面に無く、ここに入った打は見えない・直せない。保存データの構造変更なので同意制：
+   ホームの案内で「まとめる」を押したときだけ実行。移行前のラウンドは golf.v2.premerge.<ID> に丸ごと残す（消さない）。
+   並びは nonPuttShots と同じ（ショット欄の後ろ・同一打は除く）なので、合計打数は変わらない。approach.eval（意図等）は触らない。 */
+function apprPendingHoles(r){ return (r&&r.holes||[]).filter(h=>h.owner&&h.owner.approach&&(h.owner.approach.shots||[]).length); }
+function apprPending(){ const out=[]; DB.index().forEach(x=>{ const r=DB.round(x.id); const hs=apprPendingHoles(r);
+    if(hs.length) out.push({id:x.id, date:r.date, course:(r.course&&r.course.name)||'', holes:hs.length, shots:hs.reduce((a,h)=>a+h.owner.approach.shots.length,0)}); });
+  return out; }
+function mergeApprRound(r){ let n=0; apprPendingHoles(r).forEach(h=>{ const o=h.owner, thru=o.through.shots||(o.through.shots=[]);
+    const extra=o.approach.shots.filter(a=>!thru.some(t=>sameShot(t,a)));
+    extra.forEach(a=>{ thru.push(Object.assign(mkShot(), a)); n++; }); o.approach.shots=[]; }); return n; }
+let apprLater=false;
+function apprMergeAll(){ const list=apprPending(); if(!list.length){ render(); return; }
+  if(!confirm(list.length+'ラウンドの旧アプローチ欄の記録をショット欄へまとめます。\n移行前の記録は端末内に別に残します。よろしいですか？'))return;
+  let ok=0, moved=0;
+  list.forEach(x=>{ try{ const raw=localStorage.getItem(NS+'round.'+x.id); if(!raw)return;
+      let bk=NS+'premerge.'+x.id; if(localStorage.getItem(bk)!=null) bk+='.'+Date.now();
+      localStorage.setItem(bk, raw); if(localStorage.getItem(bk)!==raw) return; /* 退避を確かめてから移す */
+      const r=JSON.parse(raw); moved+=mergeApprRound(r); DB.saveRound(r); ok++;
+      if(S.round&&S.round.roundId===r.roundId) S.round=r; }catch(e){} });
+  render(); setTimeout(()=>alert(ok+'ラウンド・'+moved+'打をショット欄へまとめました。\n残り距離が空の打は「残り未入力」と表示されます。残りを選ぶと100y以内はアプローチとして数えます。'),60); }
+function apprLaterSet(){ apprLater=true; render(); }
+function apprBanner(){ if(apprLater)return ''; const list=apprPending(); if(!list.length)return '';
+  const n=list.reduce((a,x)=>a+x.shots,0);
+  return `<div class="card" style="border-color:var(--amber); background:rgba(240,180,41,.08); margin-bottom:12px">
+    <div style="font-weight:800; color:var(--amber)">画面に出ていない記録が ${n} 打あります（データは消えていません）</div>
+    <div class="sm muted" style="margin:4px 0 6px">以前の「アプローチ」欄に入った打です（AI解析などで記録したもの）。この欄は今の画面に無いため、ショット欄へまとめると見て直せるようになります。合計打数は変わりません。まとめる前に、念のため<b>バックアップ</b>を書き出しておくことをおすすめします。移行前の記録も端末内に残します。</div>
+    <div class="sm" style="margin-bottom:10px">${list.map(x=>esc(x.date+' '+x.course)+'（'+x.holes+'ホール・'+x.shots+'打）').join('<br>')}</div>
+    <button class="ghostbtn" style="margin-bottom:8px" onclick="exportData()">📥 先にバックアップを書き出す（JSON）</button>
+    <button class="bigbtn" style="border-color:var(--amber); background:var(--amber); color:#3a2a00" onclick="apprMergeAll()">ショット欄へまとめる</button>
+    <button class="ghostbtn" style="margin-top:8px" onclick="apprLaterSet()">あとで（次に開いたときにまた表示）</button></div>`; }
 function throughCount(h){ return nonPuttShots(h).filter(s=>!isApproachShot(s)).reduce((a,s)=>a+1+(s.pen||0),0); }
 function approachCount(h){ return nonPuttShots(h).filter(isApproachShot).reduce((a,s)=>a+1+(s.pen||0),0); }
 /* スコアカードの番手列：1打=1行で番手を縦に並べ、ペナルティはその打の横に表示 */
@@ -1173,7 +1205,7 @@ function renderHome(){
     <button class="ghostbtn" style="margin-top:8px" onclick="dismissLegacy()">読み込まない（今後この案内を出さない）</button>
     <div class="sm muted" style="margin-top:4px">読み込まなくても元データは消えません（「🔍 以前の記録（元データ）を確認」から見られます）。</div></div>`:'';
   $('app').innerHTML=`
-    ${recover}
+    ${recover}${apprBanner()}
     <h2>ラウンド</h2>
     <button class="bigbtn" onclick="newRound()">＋ 新しいラウンドを始める</button>
     ${all.length?`<div class="filters" style="margin-top:12px">${yOpt}${mOpt}</div>`:''}
@@ -1673,7 +1705,7 @@ function renderAnalysis(){
 
 /* ============ 詳細（ショット/アプローチ/パット） ============ */
 function availStages(){ const lv=S.round.logLevel; const h=S.round.holes[S.detailHole], o=h&&h.owner;
-  return { through:lv>=2, approach:!!(o&&o.approach&&o.approach.shots&&o.approach.shots.length), putt:true }; }
+  return { through:lv>=2, approach:false, putt:true }; } /* v2.35.0 アプローチ欄は廃止（旧データはショット欄へまとめる） */
 function firstStage(){ const lv=S.round.logLevel; return lv>=2?'through':'putt'; }
 function openDetail(i){ S.detailHole=i; S.half=H().half; const own=OWN();
   if(own.through.shots[0] && own.through.shots[0].yard==null) own.through.shots[0].yard=H().yard;
@@ -1763,12 +1795,15 @@ function stageContent(){
   const lieStrip=(i,s)=>`<div class="lielab">着弾</div><div class="liestrip">`+LIES.map(L=>`<div class="liebtn ${s.lie===L?'on':''}" onclick="setLie(${i},'${esc(L)}')">${esc(L)}</div>`).join('')+`</div>`;
   const row=(s,i)=>`<div class="srow">${fromRow(i)}<div class="srowhead"><div class="seq">${i+1}</div>
       <div class="cname ${s.club?'':'non'}">${s.club?esc(s.club):'クラブ'}</div>${ydSel(i,s)}${resSel(i,s)}
-      <button class="delx" onclick="delShot(${i})">✕</button></div>${strip(i,s)}${lieStrip(i,s)}</div>`;
+      <button class="delx" onclick="delShot(${i})">✕</button></div>${s.yard==null?`<div class="sm" style="color:var(--amber); margin:2px 0 4px">残り未入力：残りを選ぶと、100y以内はアプローチとして数えます（未入力の間は運び扱い）</div>`:''}${strip(i,s)}${lieStrip(i,s)}</div>`;
+  /* v2.35.0 旧アプローチ欄に残っている打（まだ「まとめる」を押していないとき）は、ここで存在を知らせる */
+  const apN=(OWN().approach&&OWN().approach.shots||[]).length;
+  const apNote=apN?`<div class="card" style="border-color:var(--amber); background:rgba(240,180,41,.08); margin-bottom:8px"><div style="font-weight:800; color:var(--amber)">このホールには画面に出ていない記録が ${apN} 打あります</div><div class="sm muted" style="margin:4px 0 8px">以前の「アプローチ」欄の打です（合計打数には入っています）。ショット欄へまとめると、ここに並んで直せるようになります。</div><button class="bigbtn" style="border-color:var(--amber); background:var(--amber); color:#3a2a00" onclick="apprMergeAll()">ショット欄へまとめる</button></div>`:'';
   const detail=(s,i)=>`<div class="sdetail"><div class="sdhead">${i+1}打目${s.club?' ・ '+esc(s.club):''}${s.yard!=null?' ・ '+s.yard+uy:''}</div>
       <div class="taglab">状況（打つ前）</div>${tagGroup(i,'pre',s.pre)}
       <div class="taglab">狙い（打つ前・球筋・落とし所）</div>${tagGroup(i,'post',s.post)}
       <div class="taglab">キーポイント（打った後・自由記述）</div><textarea placeholder="気づき・反省・球筋など" oninput="setNote(${i},this.value)">${esc(s.note)}</textarea></div>`;
-  return `<h2>ショット</h2>${arr.map(row).join('')}
+  return `<h2>ショット</h2>${apNote}${arr.map(row).join('')}
     <div class="addrow"><button class="add" onclick="addShot()">＋ 1打追加</button><button class="rem" onclick="remLast()">△ 1打削除</button></div>
     <h2>ホールアウト（グリーン外で終了）</h2><div class="card">
       <div class="seg" style="margin-top:0"><div class="segopt ${OWN().putt.chipIn?'on':''}" onclick="setHoleOut('chipin')">チップイン</div><div class="segopt ${OWN().putt.okOn?'on':''}" onclick="setHoleOut('ok')">OK（寄せワン）</div></div></div>
