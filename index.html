@@ -232,8 +232,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='2.36.0';
-const APP_BUILD='2026-11-04';/*v2.36.0 クラブ別ナイス率→クラブ別ミス率（×＋ペナ・高い順・件数併記）・旧形式パットだけのホールは簡易SG分解の対象外（注記つき）／v2.35.0 旧アプローチ欄の打をショット欄へまとめる（同意制・移行前は別キーに保存）・AI解析/旧形式読込はショット欄へ・残り未入力の目印／v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
+const APP_VERSION='2.37.0';
+const APP_BUILD='2026-11-04';/*v2.37.0 旧形式パットのSG除外を戻し、旧形式の1打目の距離で期待パットを補完／v2.36.0 クラブ別ナイス率→クラブ別ミス率（×＋ペナ・高い順・件数併記）・旧形式パットだけのホールは簡易SG分解の対象外（注記つき）／v2.35.0 旧アプローチ欄の打をショット欄へまとめる（同意制・移行前は別キーに保存）・AI解析/旧形式読込はショット欄へ・残り未入力の目印／v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -960,7 +960,9 @@ function gonBand(y){ y=+y; if(y<=50)return{k:'g1',lab:'≤50y',ord:1}; if(y>200)
 function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
   if(!o||man==null) return {ok:false};
   const par=h.par, shots=nonPuttShots(h), puttScore=(h.puttScore!=null?h.puttScore:null);
-  const first=o.putt&&o.putt.first, fpd=(first&&first.dist!=null)?first.dist:null, fUnit=(first&&first.unit)||'歩';
+  /* 1stパット距離：putt.first.dist、無ければ旧形式 putt.details[0].dist で補完（★確定 2026-11-04）。どちらも無ければ期待パット2.0 */
+  const first=o.putt&&o.putt.first, d0=o.putt&&o.putt.details&&o.putt.details[0];
+  const useFirst=(first&&first.dist!=null), fpd=useFirst?first.dist:((d0&&d0.dist!=null)?d0.dist:null), fUnit=(useFirst?first.unit:(d0&&d0.dist!=null?d0.unit:null))||'歩';
   let strokesToGreen=0, reached=false, teeLie=shots[0]?shots[0].lie:null, sandOpp=false, approachYard=null;
   for(let i=0;i<shots.length;i++){ const s=shots[i]; strokesToGreen+=1+(s.pen||0);
     const prevLie=i>0?shots[i-1].lie:'tee';
@@ -981,15 +983,13 @@ function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
   if(puttScore!=null) sg.putt += Eb - puttScore;
   /* SGは「ショット＋ペナ＋パット＝実スコア」が一致する（詳細が完結した）ホールのみ。でないと合計がズレる */
   const detailStrokes=shots.length+penTotal+(puttScore||0);
-  /* 旧形式パット（putt.details だけで putt.first が無い）のホールは SG の対象外（★確定 2026-11-04：期待パットを一律2.0で計算しない） */
-  const pd=(o.putt&&o.putt.details)||[], legacyPutt=!(first&&(first.r1||first.zone||first.dist!=null)) && pd.some(d=>d&&(d.dist!=null||d.result||d.zone));
-  const sgBase=(hasLie && puttScore!=null && shots.length>0 && detailStrokes===man), sgOk=sgBase && !legacyPutt, sgLegacy=sgBase && legacyPutt;
+  const sgOk=(hasLie && puttScore!=null && shots.length>0 && detailStrokes===man);
   const firstPutt=firstPuttOf(o);
   return {ok:true, par, man, overPar:man-par, FIR, firApplicable, GIR, reached, strokesToGreen,
     scrambleOpp:!GIR, scrambleOk:(man<=par), sandOpp, sandOk:(man<=par),
-    putts:puttScore, is3, penTotal, A, B, sg, sgPen, sgOk, sgLegacy, approachYard, firstPutt}; }
+    putts:puttScore, is3, penTotal, A, B, sg, sgPen, sgOk, approachYard, firstPutt}; }
 /* 複数ラウンドを集計 */
-function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sgLegacy:0,sgOverPar:0,scoreSum:0,parSum:0,overPar:0,
+function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sgOverPar:0,scoreSum:0,parSum:0,overPar:0,
     dist:{bl:0,par:0,bgy:0,dbl:0}, firOpp:0,firOk:0, gir:0, scrOpp:0,scrOk:0, sandOpp:0,sandOk:0,
     puttSum:0,puttHoles:0,three:0, girPutt:0,girPuttSum:0, pen:0,
     sg:{tee:0,carry:0,short:0,putt:0}, sgPen:{tee:0,carry:0,short:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{}, slopeX:{}, readSide:{}, missDir:{n:0,over:0,short:0},
@@ -1002,7 +1002,6 @@ function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sg
     if(st.sandOpp){ acc.sandOpp++; if(st.sandOk)acc.sandOk++; }
     if(st.putts!=null){ acc.puttSum+=st.putts; acc.puttHoles++; if(st.is3)acc.three++; if(st.GIR){acc.girPutt++; acc.girPuttSum+=st.putts;} }
     acc.pen+=st.penTotal;
-    if(st.sgLegacy)acc.sgLegacy++;
     if(st.sgOk){ acc.sgHoles++; acc.sgOverPar+=st.overPar; acc.sg.tee+=st.sg.tee; acc.sg.carry+=st.sg.carry; acc.sg.short+=st.sg.short; acc.sg.putt+=st.sg.putt; acc.sgPen.tee+=st.sgPen.tee; acc.sgPen.carry+=st.sgPen.carry; acc.sgPen.short+=st.sgPen.short;
       if(acc.hb[st.par]){ acc.hb[st.par].A+=st.A; acc.hb[st.par].B+=st.B; acc.hb[st.par].n++; } }
     nonPuttShots(h).forEach(s=>{ if(!s.club)return; const c=acc.clubRes[s.club]||(acc.clubRes[s.club]={o:0,dash:0,x:0,pen:0,n:0}); c.n++; const v=s.res||'';
@@ -1080,7 +1079,7 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   const avgScore=(a.scoreSum/a.holes*18).toFixed(1);
   /* 失点分析（SG・9hあたり・SG対象ホールのみ・横向きウォーターフォール） */
   var per9=9/Math.max(1,a.sgHoles);
-  var sgNote='<div class="sm muted" style="margin-top:8px">9hあたり＝合計×9÷記録ホール数。別項目にしたペナは<b>ティーショットのみ</b>（「ティー（ペナ）」）。運び・アプローチの罰はそれぞれの項目に含みます（赤で内訳表示）。'+(a.sgHoles<a.holes?'簡易SG分解は着弾ライ＋パット数が揃った '+a.sgHoles+' ホールのみ（残りは未記録）。':'')+(a.sgLegacy?'旧形式パット（1stパットの記録なし）の '+a.sgLegacy+' ホールは対象外。':'')+'</div>';
+  var sgNote='<div class="sm muted" style="margin-top:8px">9hあたり＝合計×9÷記録ホール数。別項目にしたペナは<b>ティーショットのみ</b>（「ティー（ペナ）」）。運び・アプローチの罰はそれぞれの項目に含みます（赤で内訳表示）。'+(a.sgHoles<a.holes?'簡易SG分解は着弾ライ＋パット数が揃った '+a.sgHoles+' ホールのみ（残りは未記録）。':'')+'</div>';
   /* ティーだけ「ティー（ショット）」と「ペナルティ」に分離。色＝ペナ赤／ロス黄／ゲイン緑 */
   var teeShot=-(a.sg.tee+a.sgPen.tee)*per9, teePen=a.sgPen.tee*per9;
   var wcats=[{lab:'ティー',v:teeShot,pen:0,kind:'shot'},{lab:'ティー（ペナ）',v:teePen,pen:0,kind:'pen'},{lab:'運び',v:-a.sg.carry*per9,pen:a.sgPen.carry*per9,kind:'shot'},{lab:'アプローチ（寄せ）',v:-a.sg.short*per9,pen:a.sgPen.short*per9,kind:'shot'},{lab:'パット',v:-a.sg.putt*per9,pen:0,kind:'shot'}];
