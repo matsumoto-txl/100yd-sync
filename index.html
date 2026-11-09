@@ -232,8 +232,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='3.0';
-const APP_BUILD='2026-11-05';/*v3.0 クラブ別ミス率（個別設定の飛距離順）・旧形式パットのSGを1打目の歩数で補完（開発中の v2.36.0 本番＋v2.37.0〜2.37.2 をまとめて 3.0 に）／v2.37.2 クラブ別ミス率を個別設定の飛距離順に／v2.37.1 クラブ別ミス率をクラブ順に／v2.37.0 旧形式パットのSG除外を戻し、旧形式の1打目の距離で期待パットを補完／v2.36.0 クラブ別ナイス率→クラブ別ミス率（×＋ペナ・高い順・件数併記）・旧形式パットだけのホールは簡易SG分解の対象外（注記つき）／v2.35.0 旧アプローチ欄の打をショット欄へまとめる（同意制・移行前は別キーに保存）・AI解析/旧形式読込はショット欄へ・残り未入力の目印／v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
+const APP_VERSION='3.01';
+const APP_BUILD='2026-11-05';/*v3.01 クラブ別ミス率のバーを左から〇→-→×→ペナに戻す（数字はミス率のまま）・パットの外れの縦に「距離OK（左右に外れ）」を追加（ショート＋オーバーが常に100%だった不具合）／v3.0 クラブ別ミス率（個別設定の飛距離順）・旧形式パットのSGを1打目の歩数で補完（開発中の v2.36.0 本番＋v2.37.0〜2.37.2 をまとめて 3.0 に）／v2.37.2 クラブ別ミス率を個別設定の飛距離順に／v2.37.1 クラブ別ミス率をクラブ順に／v2.37.0 旧形式パットのSG除外を戻し、旧形式の1打目の距離で期待パットを補完／v2.36.0 クラブ別ナイス率→クラブ別ミス率（×＋ペナ・高い順・件数併記）・旧形式パットだけのホールは簡易SG分解の対象外（注記つき）／v2.35.0 旧アプローチ欄の打をショット欄へまとめる（同意制・移行前は別キーに保存）・AI解析/旧形式読込はショット欄へ・残り未入力の目印／v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -948,9 +948,10 @@ function firstPuttOf(o){ const p=o&&o.putt; if(!p)return null; const f=p.first;
   const nx=p.details[1], sl=(d.slope!=null?+d.slope:0);
   const slopeCat=d.slopeV||(sl>0?'上り':sl<0?'下り':(d.slope!=null?'フラット':''));
   return {src:'details',dist:(d.dist!=null?+d.dist:null),unit:d.unit||'歩',read:d.slopeH||'',r1,r2:null,rem:(r1==='外れ'&&nx&&nx.dist!=null?+nx.dist:null),zone:d.zone||'',slopeCat}; }
-/* 外れの縦（over/short）と左右（L/R）。縦はゾーン優先、横段（左/カップ付近/右）なら r2 の符号 */
+/* 外れの縦（over/short/just）と左右（L/R）。縦はゾーン優先、横段（左/カップ付近/右）なら r2 の符号。
+   横段で r2 が 0 か未入力＝距離は合っていて左右に外れた → just（v3.01：以前は空で集計から抜け、ショート＋オーバーが常に100%だった） */
 function puttMissDir(fp){ const z=fp.zone||''; let v='', s='';
-  if(/奥/.test(z))v='over'; else if(/手前/.test(z))v='short'; else if(fp.r2!=null&&fp.r2!==0)v=(fp.r2>0?'over':'short');
+  if(/奥/.test(z))v='over'; else if(/手前/.test(z))v='short'; else if(fp.r2!=null&&fp.r2!==0)v=(fp.r2>0?'over':'short'); else if(/^(左|右|カップ付近)$/.test(z)||fp.r2===0)v='just';
   if(/^左/.test(z))s='L'; else if(/^右/.test(z))s='R';
   return {v,s}; }
 /* グリーンオン率の距離帯（≤50y・以降30y刻み（上端を含む）・200y超は一括） */
@@ -992,7 +993,7 @@ function holeStat(h,pid){ const o=h.owner, man=h.scores[pid];
 function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sgOverPar:0,scoreSum:0,parSum:0,overPar:0,
     dist:{bl:0,par:0,bgy:0,dbl:0}, firOpp:0,firOk:0, gir:0, scrOpp:0,scrOk:0, sandOpp:0,sandOk:0,
     puttSum:0,puttHoles:0,three:0, girPutt:0,girPuttSum:0, pen:0,
-    sg:{tee:0,carry:0,short:0,putt:0}, sgPen:{tee:0,carry:0,short:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{}, slopeX:{}, readSide:{}, missDir:{n:0,over:0,short:0},
+    sg:{tee:0,carry:0,short:0,putt:0}, sgPen:{tee:0,carry:0,short:0}, clubRes:{}, band:{}, pbBand:{}, prox:{sum:0,n:0}, readx:{}, slopeX:{}, readSide:{}, missDir:{n:0,over:0,short:0,just:0},
     hb:{3:{A:0,B:0,n:0},4:{A:0,B:0,n:0},5:{A:0,B:0,n:0}} };
   rounds.forEach(r=>{ const pid=ownerPid(r); r.holes.forEach(h=>{ const st=holeStat(h,pid); if(!st.ok)return; acc.holes++;
     acc.scoreSum+=st.man; acc.parSum+=st.par; acc.overPar+=st.overPar;
@@ -1013,7 +1014,7 @@ function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sg
       const b=gonBand(s.yard); const bb=acc.band[b.k]||(acc.band[b.k]={lab:b.lab,ord:b.ord,n:0,on:0}); bb.n++; if(s.lie==='ON')bb.on++; });
     if(st.firstPutt){ const fp=st.firstPutt;
       const rem=(fp.r1==='外れ')?(fp.r2!=null?Math.abs(fp.r2):(fp.rem!=null?fp.rem:null)):null, md=(fp.r1==='外れ')?puttMissDir(fp):{v:'',s:''};
-      if(fp.r1&&fp.dist!=null){ const pb=puttBand(fp.dist,fp.unit); const ob=acc.pbBand[pb.k]||(acc.pbBand[pb.k]={lab:pb.lab,ord:pb.ord,n:0,in:0,miss:0,remSum:0,remN:0,over:0,short:0,dirN:0}); ob.n++; if(fp.r1==='in')ob.in++;
+      if(fp.r1&&fp.dist!=null){ const pb=puttBand(fp.dist,fp.unit); const ob=acc.pbBand[pb.k]||(acc.pbBand[pb.k]={lab:pb.lab,ord:pb.ord,n:0,in:0,miss:0,remSum:0,remN:0,over:0,short:0,just:0,dirN:0}); ob.n++; if(fp.r1==='in')ob.in++;
         if(fp.r1==='外れ'){ ob.miss++; if(rem!=null){ob.remSum+=rem; ob.remN++;} if(md.v){ob.dirN++; ob[md.v]++;} } }
       if(rem!=null){ acc.prox.sum+=rem; acc.prox.n++; }
       if(md.v){ acc.missDir.n++; acc.missDir[md.v]++; }
@@ -1138,14 +1139,14 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   var distBar=dseg.map(function(x){ var w=dT?x[1]/dT*100:0; return w>0?'<div style="width:'+w+'%; background:'+x[2]+'"></div>':''; }).join('');
   var distLeg=dseg.map(function(x){ return '<span class="sm muted" style="margin-right:12px"><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:'+x[2]+'; vertical-align:middle; margin-right:4px"></span>'+x[0]+' '+(x[1]/nR).toFixed(1)+'/R</span>'; }).join('');
   var scoreSec='<h2>スコア内訳（1R平均スコア '+avgScore+'）</h2><div class="card"><div style="display:flex; height:20px; border-radius:6px; overflow:hidden">'+distBar+'</div><div style="margin-top:8px">'+distLeg+'</div></div>';
-  /* クラブ別ミス率（★確定 2026-11-04：ナイス率から置き換え・課題の洗い出し用）。ミス＝×＋ペナ／分母＝番手が入った全打（「-」と未入力は区別できないため含む）。並び＝設定（個別設定）の飛距離の長い順（松本さん指示 2026-11-05）。飛距離が無い番手は末尾、同じ飛距離は設定の並び順 */
+  /* クラブ別ミス率（★確定 2026-11-04：ナイス率から置き換え・課題の洗い出し用）。ミス＝×＋ペナ／分母＝番手が入った全打（「-」と未入力は区別できないため含む）。並び＝設定（個別設定）の飛距離の長い順（松本さん指示 2026-11-05）。飛距離が無い番手は末尾、同じ飛距離は設定の並び順。バーは左から〇→-→×→ペナ（左がいい方。v3.01 松本さん指示） */
   var clubOrder=DB.settings().clubs.map(function(c){return c.name;});
   var clubs=Object.keys(a.clubRes).filter(function(c){ return a.clubRes[c].n>0; });
   var missP=function(c){ var r=a.clubRes[c]; return (r.x+r.pen)/r.n; };
   clubs.sort(function(x,y){ var dx=clubDist(x), dy=clubDist(y); dx=(dx==null||isNaN(+dx))?-1:+dx; dy=(dy==null||isNaN(+dy))?-1:+dy; if(dx!==dy)return dy-dx; var ix=clubOrder.indexOf(x), iy=clubOrder.indexOf(y); return (ix<0?999:ix)-(iy<0?999:iy); });
-  var clubHtml=clubs.map(function(c){ var r=a.clubRes[c], n=r.n, m=r.x+r.pen; var seg=[[r.pen,'#d9534f'],[r.x,'#e0a800'],[r.dash,'#888780'],[r.o,'#1d9e75']].map(function(p){ var w=p[0]/n*100; return w>0?'<div style="width:'+w+'%; background:'+p[1]+'"></div>':''; }).join('');
+  var clubHtml=clubs.map(function(c){ var r=a.clubRes[c], n=r.n, m=r.x+r.pen; var seg=[[r.o,'#1d9e75'],[r.dash,'#888780'],[r.x,'#e0a800'],[r.pen,'#d9534f']].map(function(p){ var w=p[0]/n*100; return w>0?'<div style="width:'+w+'%; background:'+p[1]+'"></div>':''; }).join('');
     return '<div class="frow" style="margin-top:8px; align-items:center; gap:8px"><span style="width:36px; font-weight:800">'+esc(c)+'</span><div style="flex:1; display:flex; height:15px; border-radius:4px; overflow:hidden; background:var(--surface2)">'+seg+'</div><span style="width:44px; text-align:right; font-weight:800">'+Math.round(m/n*100)+'%</span><span style="width:46px; text-align:right; white-space:nowrap" class="sm muted">'+m+'/'+n+'</span></div>'; }).join('');
-  var clubSec=clubs.length?('<h2>クラブ別ミス率（× と ペナ）</h2><div class="card">'+clubHtml+'<div class="sm muted" style="margin-top:8px">ミス率＝（×＋ペナ）÷ その番手で打った数。<span style="color:#d9534f">■</span>ペナ ・ <span style="color:#e0a800">■</span>× ・ <span style="color:#888780">■</span>-/未入力 ・ <span style="color:#1d9e75">■</span>〇</div></div>'):'';
+  var clubSec=clubs.length?('<h2>クラブ別ミス率（× と ペナ）</h2><div class="card">'+clubHtml+'<div class="sm muted" style="margin-top:8px">ミス率＝（×＋ペナ）÷ その番手で打った数。<span style="color:#1d9e75">■</span>〇 ・ <span style="color:#888780">■</span>-/未入力 ・ <span style="color:#e0a800">■</span>× ・ <span style="color:#d9534f">■</span>ペナ</div></div>'):'';
   /* 距離帯別GIR */
   var bands=Object.keys(a.band).sort(function(x,y){return a.band[x].ord-a.band[y].ord;});
   var bandHtml=bands.map(function(k){ var bb=a.band[k]; var p=Math.round(bb.on/bb.n*100); return '<div class="frow" style="margin-top:7px; align-items:center; gap:8px"><span style="width:72px" class="sm muted">'+bb.lab+'</span><div style="flex:1; height:15px; border-radius:4px; background:var(--surface2)"><div style="width:'+p+'%; height:15px; border-radius:4px; background:#378add"></div></div><span style="width:78px; text-align:right; white-space:nowrap" class="sm muted">'+p+'% ('+bb.on+'/'+bb.n+')</span></div>'; }).join('');
@@ -1158,10 +1159,10 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   /* 距離帯別の近接度（外れ後の平均残り）＋ショート/オーバー */
   var pxKeys=pbKeys.filter(function(k){ return a.pbBand[k].remN||a.pbBand[k].dirN; });
   var pxHtml=pxKeys.map(function(k){ var o=a.pbBand[k], rv=o.remN?(o.remSum/o.remN).toFixed(1)+u:'—';
-    var dir=o.dirN?seg3([[o.short,'#e0a800'],[o.over,'#378add']],o.dirN):'<div style="flex:1" class="sm muted">—</div>';
-    return '<div class="frow" style="margin-top:8px; align-items:center; gap:8px"><span style="width:62px" class="sm muted">'+o.lab+u+'</span><span style="width:52px; text-align:right; font-weight:800" class="sm">'+rv+'</span>'+dir+'<span style="width:70px; text-align:right" class="sm muted">'+(o.dirN?('短'+Math.round(o.short/o.dirN*100)+'% ('+o.dirN+')'):'')+'</span></div>'; }).join('');
+    var dir=o.dirN?seg3([[o.short,'#e0a800'],[o.just,'#1d9e75'],[o.over,'#378add']],o.dirN):'<div style="flex:1" class="sm muted">—</div>';
+    return '<div class="frow" style="margin-top:8px; align-items:center; gap:8px"><span style="width:62px" class="sm muted">'+o.lab+u+'</span><span style="width:52px; text-align:right; font-weight:800" class="sm">'+rv+'</span>'+dir+'<span style="width:104px; text-align:right; white-space:nowrap" class="sm muted">'+(o.dirN?('短'+Math.round(o.short/o.dirN*100)+'% 長'+Math.round(o.over/o.dirN*100)+'% ('+o.dirN+')'):'')+'</span></div>'; }).join('');
   var proxV=a.prox.n?(a.prox.sum/a.prox.n).toFixed(1):null;
-  var md=a.missDir, mdLine=md.n?('<div class="sm muted" style="margin-top:4px">外れの縦：<span style="color:#e0a800">ショート '+Math.round(md.short/md.n*100)+'%</span> / <span style="color:#378add">オーバー '+Math.round(md.over/md.n*100)+'%</span>（'+md.n+'回）</div>'):'';
+  var md=a.missDir, mdLine=md.n?('<div class="sm muted" style="margin-top:4px">外れの縦：<span style="color:#e0a800">ショート '+Math.round(md.short/md.n*100)+'%</span> / <span style="color:#1d9e75">距離OK '+Math.round(md.just/md.n*100)+'%</span> / <span style="color:#378add">オーバー '+Math.round(md.over/md.n*100)+'%</span>（'+md.n+'回）</div>'):'';
   /* 傾斜×結果 */
   var slopes=['上り','フラット','下り'].filter(function(c){return a.slopeX[c];});
   var slopeHtml=slopes.map(function(c){ var o=a.slopeX[c]; return '<div class="frow" style="margin-top:8px; align-items:center; gap:8px"><span style="width:52px; font-weight:800" class="sm">'+c+'</span>'+seg3([[o.in,'#1d9e75'],[o.ok,'#378add'],[o.miss,'#e24b4a']],o.n)+'<span style="width:104px; text-align:right; white-space:nowrap" class="sm muted">in'+Math.round(o.in/o.n*100)+'%'+(o.remN?(' 残'+(o.remSum/o.remN).toFixed(1)):'')+' ('+o.n+')</span></div>'; }).join('');
@@ -1175,7 +1176,7 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   var LG3='<span style="color:#1d9e75">in</span> / <span style="color:#378add">OK</span> / <span style="color:#e24b4a">外れ</span>';
   var puttDeep=hasPB?('<h2>パッティング深掘り（1stパット）</h2><div class="sm muted" style="margin:0 4px 8px">※ビジュアル1stパット入力を優先し、無いホールは旧形式のパット詳細（1打目）で集計。</div>'
     +(pbKeys.length?card('距離帯別 1パット率（沈めた＝in）',pbHtml):'')
-    +((proxV!=null||pxKeys.length)?card('外した後の残り（近接度）'+(proxV!=null?'<span style="float:right">全体 <b style="font-size:16px; color:var(--text)">'+proxV+u+'</b>（'+a.prox.n+'回）</span>':''),pxHtml+mdLine,pxKeys.length?'距離帯／平均残り／<span style="color:#e0a800">ショート</span>・<span style="color:#378add">オーバー</span>':''):'')
+    +((proxV!=null||pxKeys.length)?card('外した後の残り（近接度）'+(proxV!=null?'<span style="float:right">全体 <b style="font-size:16px; color:var(--text)">'+proxV+u+'</b>（'+a.prox.n+'回）</span>':''),pxHtml+mdLine,pxKeys.length?'距離帯／平均残り／<span style="color:#e0a800">ショート</span>・<span style="color:#1d9e75">距離OK（左右に外れ）</span>・<span style="color:#378add">オーバー</span>':''):'')
     +(slopes.length?card('傾斜別の結果（上り/下り）',slopeHtml,LG3+'・残＝外れ後の平均残り（'+u+'）'):'')
     +(reads.length?card('読み別の結果',readHtml,LG3):'')
     +(rsKeys.length?card('読みの過不足（左右に外れたとき）',rsHtml,'<span style="color:#7f77dd">高い側＝読みすぎ傾向</span> / <span style="color:#d85a30">低い側＝読み不足傾向</span>（右打ち前提）'):'')):'';
