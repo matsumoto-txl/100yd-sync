@@ -232,8 +232,8 @@ const PUTZONES=[
   {id:'左手前',x:45,y:190,cx:80,cy:225},{id:'手前',x:115,y:190,cx:150,cy:225},{id:'右手前',x:185,y:190,cx:220,cy:225}
 ];
 /* ★リリースごとに更新（sw.jsのCACHE版数も一緒に揃える）★ */
-const APP_VERSION='3.01';
-const APP_BUILD='2026-11-05';/*v3.01 クラブ別ミス率のバーを左から〇→-→×→ペナに戻す（数字はミス率のまま）・パットの外れの縦に「距離OK（左右に外れ）」を追加（ショート＋オーバーが常に100%だった不具合）／v3.0 クラブ別ミス率（個別設定の飛距離順）・旧形式パットのSGを1打目の歩数で補完（開発中の v2.36.0 本番＋v2.37.0〜2.37.2 をまとめて 3.0 に）／v2.37.2 クラブ別ミス率を個別設定の飛距離順に／v2.37.1 クラブ別ミス率をクラブ順に／v2.37.0 旧形式パットのSG除外を戻し、旧形式の1打目の距離で期待パットを補完／v2.36.0 クラブ別ナイス率→クラブ別ミス率（×＋ペナ・高い順・件数併記）・旧形式パットだけのホールは簡易SG分解の対象外（注記つき）／v2.35.0 旧アプローチ欄の打をショット欄へまとめる（同意制・移行前は別キーに保存）・AI解析/旧形式読込はショット欄へ・残り未入力の目印／v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
+const APP_VERSION='3.02';
+const APP_BUILD='2026-11-13';/*v3.02 パットの近接度・外れの縦にOKを「距離OK・残り0.5歩」として加える／v3.01 クラブ別ミス率のバーを左から〇→-→×→ペナに戻す（数字はミス率のまま）・パットの外れの縦に「距離OK（左右に外れ）」を追加（ショート＋オーバーが常に100%だった不具合）／v3.0 クラブ別ミス率（個別設定の飛距離順）・旧形式パットのSGを1打目の歩数で補完（開発中の v2.36.0 本番＋v2.37.0〜2.37.2 をまとめて 3.0 に）／v2.37.2 クラブ別ミス率を個別設定の飛距離順に／v2.37.1 クラブ別ミス率をクラブ順に／v2.37.0 旧形式パットのSG除外を戻し、旧形式の1打目の距離で期待パットを補完／v2.36.0 クラブ別ナイス率→クラブ別ミス率（×＋ペナ・高い順・件数併記）・旧形式パットだけのホールは簡易SG分解の対象外（注記つき）／v2.35.0 旧アプローチ欄の打をショット欄へまとめる（同意制・移行前は別キーに保存）・AI解析/旧形式読込はショット欄へ・残り未入力の目印／v2.34.0 コースマスターの9hに開始ホールを保持（流し込みで反映・ラウンドで変更可）／v2.33.0 旧データ案内の修正（読み込み済み/読み込まないを除外）・「パット分析」へ改名・スタッツにスコアの推移・入力レベルを2段階（パットのみ/フル）*/
 
 /* ============ 保存（golf.v2 名前空間・旧 golf.* は温存） ============ */
 const NS='golf.v2.';
@@ -1013,10 +1013,13 @@ function aggStats(rounds){ const acc={nRounds:rounds.length,holes:0,sgHoles:0,sg
     nonPuttShots(h).forEach(function(s,i){ if(s.yard==null||!s.lie)return; if(i===0&&st.par>=4)return;
       const b=gonBand(s.yard); const bb=acc.band[b.k]||(acc.band[b.k]={lab:b.lab,ord:b.ord,n:0,on:0}); bb.n++; if(s.lie==='ON')bb.on++; });
     if(st.firstPutt){ const fp=st.firstPutt;
-      const rem=(fp.r1==='外れ')?(fp.r2!=null?Math.abs(fp.r2):(fp.rem!=null?fp.rem:null)):null, md=(fp.r1==='外れ')?puttMissDir(fp):{v:'',s:''};
+      /* OK（入らなかったが残りOK）は、近接度と外れの縦では「距離OK・残り0.5歩」として数える（v3.02 松本さん指示）。傾斜別の「外れ後の平均残り」は外れだけのまま */
+      const isOK=(fp.r1==='OK'), okRem=0.5*PUTT_COEF['歩']/(PUTT_COEF[fp.unit]||PUTT_COEF['歩']);
+      const rem=(fp.r1==='外れ')?(fp.r2!=null?Math.abs(fp.r2):(fp.rem!=null?fp.rem:null)):null, md=(fp.r1==='外れ')?puttMissDir(fp):(isOK?{v:'just',s:''}:{v:'',s:''});
+      const remX=isOK?okRem:rem;
       if(fp.r1&&fp.dist!=null){ const pb=puttBand(fp.dist,fp.unit); const ob=acc.pbBand[pb.k]||(acc.pbBand[pb.k]={lab:pb.lab,ord:pb.ord,n:0,in:0,miss:0,remSum:0,remN:0,over:0,short:0,just:0,dirN:0}); ob.n++; if(fp.r1==='in')ob.in++;
-        if(fp.r1==='外れ'){ ob.miss++; if(rem!=null){ob.remSum+=rem; ob.remN++;} if(md.v){ob.dirN++; ob[md.v]++;} } }
-      if(rem!=null){ acc.prox.sum+=rem; acc.prox.n++; }
+        if(fp.r1==='外れ')ob.miss++; if(remX!=null){ob.remSum+=remX; ob.remN++;} if(md.v){ob.dirN++; ob[md.v]++;} }
+      if(remX!=null){ acc.prox.sum+=remX; acc.prox.n++; }
       if(md.v){ acc.missDir.n++; acc.missDir[md.v]++; }
       if(fp.slopeCat&&fp.r1){ const sx=acc.slopeX[fp.slopeCat]||(acc.slopeX[fp.slopeCat]={n:0,in:0,ok:0,miss:0,remSum:0,remN:0}); sx.n++; if(fp.r1==='in')sx.in++; else if(fp.r1==='OK')sx.ok++; else sx.miss++; if(rem!=null){sx.remSum+=rem; sx.remN++;} }
       /* 高い側＝右打ち前提：フック→右／スライス→左 */
@@ -1176,7 +1179,7 @@ function renderStats(){ const goal=S.statsGoal||90, scope=S.statsScope||'last5';
   var LG3='<span style="color:#1d9e75">in</span> / <span style="color:#378add">OK</span> / <span style="color:#e24b4a">外れ</span>';
   var puttDeep=hasPB?('<h2>パッティング深掘り（1stパット）</h2><div class="sm muted" style="margin:0 4px 8px">※ビジュアル1stパット入力を優先し、無いホールは旧形式のパット詳細（1打目）で集計。</div>'
     +(pbKeys.length?card('距離帯別 1パット率（沈めた＝in）',pbHtml):'')
-    +((proxV!=null||pxKeys.length)?card('外した後の残り（近接度）'+(proxV!=null?'<span style="float:right">全体 <b style="font-size:16px; color:var(--text)">'+proxV+u+'</b>（'+a.prox.n+'回）</span>':''),pxHtml+mdLine,pxKeys.length?'距離帯／平均残り／<span style="color:#e0a800">ショート</span>・<span style="color:#1d9e75">距離OK（左右に外れ）</span>・<span style="color:#378add">オーバー</span>':''):'')
+    +((proxV!=null||pxKeys.length)?card('1stパット後の残り（外れ＋OK・近接度）'+(proxV!=null?'<span style="float:right">全体 <b style="font-size:16px; color:var(--text)">'+proxV+u+'</b>（'+a.prox.n+'回）</span>':''),pxHtml+mdLine,pxKeys.length?'距離帯／平均残り／<span style="color:#e0a800">ショート</span>・<span style="color:#1d9e75">距離OK（左右に外れ・OKは残り0.5歩）</span>・<span style="color:#378add">オーバー</span>':''):'')
     +(slopes.length?card('傾斜別の結果（上り/下り）',slopeHtml,LG3+'・残＝外れ後の平均残り（'+u+'）'):'')
     +(reads.length?card('読み別の結果',readHtml,LG3):'')
     +(rsKeys.length?card('読みの過不足（左右に外れたとき）',rsHtml,'<span style="color:#7f77dd">高い側＝読みすぎ傾向</span> / <span style="color:#d85a30">低い側＝読み不足傾向</span>（右打ち前提）'):'')):'';
